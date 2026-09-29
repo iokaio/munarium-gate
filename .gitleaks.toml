@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+# gitleaks configuration for the public tree.
+#
+# Run locally with `gitleaks dir .` (working tree) or `gitleaks git .` (history).
+# CI runs it from .github/workflows/repo-hygiene.yml on every push and pull
+# request, over the whole repository.
+#
+# Everything below is an allowlist, and every entry says why. An entry with no
+# reason is a way to make the scanner quiet, which is not what it is for.
+title = "gate"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Build output"
+paths = [
+  # Compiler and package-manager output: crate metadata for PEM parsers and
+  # SDKs' own example tokens live here, and none of it is ours.
+  '''(^|/)target/''',
+  '''(^|/)build/''',
+  '''(^|/)bin/''',
+  '''(^|/)obj/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)\.gradle/''',
+]
+# No regex or stopword exceptions yet. When a guide or a compose file teaches
+# with a development-only token, list it here, name the file that uses it, and
+# say why a deployment refuses it.

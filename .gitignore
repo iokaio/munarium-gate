@@ -19,3 +19,26 @@ target
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+
+# ---------------------------------------------------------------- shared ---
+# Editor, OS and tool residue. Carried from iokaio/munarium's root .gitignore;
+# the Cargo section above came with the repository skeleton.
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+**/__pycache__/
+**/*.py[cod]
+**/.venv/
+**/venv/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/node_modules/
+# A local run of the hygiene gates leaves the gitleaks binary and archive behind.
+gitleaks
+gitleaks.exe
+gitleaks.tar.gz
