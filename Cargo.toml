@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "munarium-gate"
+version = "0.1.0-dev"
+edition = "2024"
+rust-version = "1.98"
+license = "Apache-2.0"
+description = "Deterministic decisions, durable execution claims, and isolated connector dispatch."
+repository = "https://github.com/iokaio/munarium-gate"
+readme = "README.md"
+publish = false
+
+[dependencies]

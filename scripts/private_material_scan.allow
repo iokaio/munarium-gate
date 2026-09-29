@@ -1,0 +1,20 @@
+# Reasoned exceptions to scripts/private_material_scan.py.
+#
+# Carried from iokaio/munarium. The scanner's rules are Munarium-wide, so the
+# rule set is the same in every public Munarium repository; the exceptions are
+# this repository's own.
+#
+#   <path>:<RULE>:<reason>
+#
+# A line here is a statement that the occurrence is deliberate and publishable.
+# It is not a way to make the scanner quiet. Every entry names a reason, and a
+# reason that is only "it was already there" is not one.
+
+# --- the scanner itself -------------------------------------------------------
+# It holds the patterns, so it matches all of them.
+scripts/private_material_scan.py:LEGACY_NAMES:the rule definitions
+scripts/private_material_scan.py:LAB_VOCAB:the rule definitions
+scripts/private_material_scan.py:PRIVATE_PLANS:the rule definitions
+scripts/private_material_scan.py:PRIVATE_CORPORA:the rule definitions
+scripts/private_material_scan.py:MEASUREMENTS:the rule definitions
+scripts/private_material_scan.py:LIVE_ENV_VARS:the rule definitions

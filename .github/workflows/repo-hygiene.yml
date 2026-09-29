@@ -1,0 +1,68 @@
+# Repository-wide gates: rules about what the repository may contain, which
+# run whatever changed. Carried from iokaio/munarium's repo-hygiene.yml. The
+# job name below is the status check the protection on `main` requires, so a
+# rename here is a change to that protection.
+#
+# Component gates (formatter, lints, tests, conformance) are separate
+# workflows, added in the pull request that adds the code they check.
+name: repo hygiene
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repo-hygiene-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    name: private material, licences and notices
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      # The private research and planning behind Munarium is deliberately not
+      # carried in its public repositories. This is what holds that true here.
+      - name: private material scan
+        run: python3 scripts/private_material_scan.py
+
+      # Every relative link in the Markdown resolves; every page under docs/ is
+      # listed from an index. A skeleton is mostly documentation, so this is
+      # most of what there is to check.
+      - name: documentation links and indexes
+        run: python3 scripts/docs_linkcheck.py
+
+      # Apache-2.0 headers, licence texts and notice files, across the whole
+      # tree.
+      - name: licence and notice check
+        run: python3 check_license.py
+
+      # Secret scan, over the whole tree. The binary rather than the action: the
+      # action needs a licence key for organisation repositories, and a scanner
+      # that silently skips is the failure this workflow exists to prevent. The
+      # release is pinned by version AND by the checksum gitleaks publishes.
+      - name: gitleaks
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+          GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+        run: |
+          set -euo pipefail
+          curl -sSL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          # The working tree on every push; the history too once one exists.
+          ./gitleaks dir . --config .gitleaks.toml --no-banner --redact --exit-code 1
+          if [ "$(git rev-list --count HEAD 2>/dev/null || echo 0)" -gt 0 ]; then
+            ./gitleaks git . --config .gitleaks.toml --no-banner --redact --exit-code 1
+          fi
