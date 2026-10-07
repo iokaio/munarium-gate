@@ -1,13 +1,14 @@
 # Munarium Gate validation
 
-## Build the scaffold locally
+## Build the experimental library locally
 
 Use Rust **1.98.1** with Cargo, rustfmt and Clippy, plus the platform's native linker.
 The manifest requires Rust 1.98; older toolchains are not qualified by this scaffold.
-CI installs 1.98.1 explicitly. No provider account, database, model key, container, sibling
-checkout or downloaded crate is needed for these commands from the repository root:
+CI installs 1.98.1 explicitly. Fetch the locked public crates once; subsequent component
+checks are offline and need no provider account, database or sibling checkout:
 
 ```console
+cargo fetch --locked
 cargo fmt --all --check
 cargo build --offline --locked
 cargo clippy --offline --locked --all-targets -- -D warnings
@@ -16,12 +17,11 @@ cargo doc --offline --locked --no-deps
 ```
 
 `Cargo.lock` is checked in. Do not regenerate it to bypass a locked-build failure.
-The initial lock contains only this package. When external dependencies arrive, pin and
-review them and revise the offline setup instructions to identify the required cache.
+The lock pins reviewed public dependencies. See [Stage 1](stage1.md) for native evaluator
+and cross-repository composition prerequisites.
 
-Build and lint validate the interface declarations. **There are no runtime implementations,
-unit tests or conformance tests yet.** A successful `cargo test` with zero tests is only
-a scaffold check; the acceptance cases below are specifications, not executed evidence.
+Build, lint and tests cover the implemented Stage 1 library. See [Stage 1](stage1.md)
+for exact behavioral coverage; broader acceptance cases below remain specifications.
 `cargo doc` produces local API documentation under `target/doc/`.
 
 Run the existing repository checks too:
@@ -48,7 +48,7 @@ The existing [hygiene workflow](../.github/workflows/repo-hygiene.yml) and
 
 ## Required behavioral acceptance cases
 
-These are **not implemented**. Invariant IDs refer to the catalog in
+These broader acceptance requirements are not all implemented. Invariant IDs refer to the catalog in
 [platform plan revision 4, Appendix C](https://github.com/iokaio/munarium-platform/blob/main/docs/platform-plan.md) and the
 [hub catalog](https://github.com/iokaio/munarium-platform/blob/main/README.md#the-invariant-catalog). No contract bundle has been released.
 
