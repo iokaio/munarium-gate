@@ -25,6 +25,8 @@ jobs:
         run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
       - name: Format
         run: cargo +1.98.1 fmt --all --check
+      - name: Fetch locked public dependencies
+        run: cargo +1.98.1 fetch --locked
       - name: Build
         run: cargo +1.98.1 build --offline --locked
       - name: Lint
@@ -35,3 +37,20 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
         run: cargo +1.98.1 doc --offline --locked --no-deps
+
+  native-evaluator:
+    name: Bounded Windows evaluator controls
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Fetch pinned evaluator and exercise native boundaries
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path target -Force | Out-Null
+          Invoke-WebRequest -Uri https://github.com/open-policy-agent/opa/releases/download/v1.21.1/opa_windows_amd64.exe -OutFile target/opa.exe
+          python scripts/check_opa.py --opa target/opa.exe

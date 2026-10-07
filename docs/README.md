@@ -9,6 +9,10 @@ section 8 covers Gate. A plan or a compiling interface does not establish a capa
 | [Architecture](architecture.md) | Proposed modules, state ownership, dependencies, threats and open decisions |
 | [Implementation plan](implementation-plan.md) | First bounded work item, delivery sequence and acceptance criteria |
 | [Validation](validation.md) | Local build recipe, automatic checks and future acceptance specifications |
+| [Stage 1](stage1.md) | Implemented decision-only behavior, reproducible checks and composition limits |
 
-The [source](../src/lib.rs) contains interface declarations only. Supported contracts,
-deployment profiles and production capabilities remain **none**.
+The [source](../src/lib.rs) includes experimental Stage 1 behavior. Released contracts,
+qualified deployment profiles and production capabilities remain **none**.
+
+[Stage 1 service profile](service-profile.md) documents configuration, the authenticated
+boundary and separate-process evidence.

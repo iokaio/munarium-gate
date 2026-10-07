@@ -7,12 +7,11 @@ verifies the principal chain, computes the consequence class, decides, records a
 claim, and hands the approved request to an isolated connector that holds the credential the agent
 never sees. Gate is the largest of the nine new components and the platform's main technical risk.
 
-> **Status: Planned — Rust scaffold present.** This checkout contains a dependency-free,
-> non-publishable [Cargo library](Cargo.toml) and documented interfaces under [src/](src/lib.rs).
-> The interfaces have no implementations: no runtime service, client transport, database,
-> provider integration or contract implementation is available. No production path is qualified.
-> Build checks validate source structure, not governance capabilities. The
-> [capability table](#capability-status) remains the authoritative functional status.
+> **Status: Stage 1 decision service implemented.** The authenticated service/client
+> profile is implemented and covered by component and separate-process tests.
+> See the [service profile](docs/service-profile.md). Candidates remain inactive;
+> no execution endpoint is mounted. Human acceptance and production qualification
+> remain pending.
 
 Gate is one of nine components built around the existing Munarium foundation, Munarium Server and
 Munarium Matrix. Their shared architecture, normative contracts, decision records, roadmap and
@@ -27,7 +26,8 @@ source from its first public commit, under the Apache License 2.0, with no propr
 Read the [development index](docs/README.md), then the [architecture](docs/architecture.md),
 [implementation plan](docs/implementation-plan.md) and [validation guide](docs/validation.md).
 They map the public platform plan to source modules, dependencies, a first bounded work item
-and acceptance cases. Runtime capabilities remain planned; supported contract versions are **none**.
+and acceptance cases. See the experimental [Stage 1 implementation](docs/stage1.md).
+Released supported contract versions remain **none**.
 
 ## What Gate is for
 
@@ -189,10 +189,10 @@ repository is at **repository created**.
 
 | Capability | Status | Evidence |
 |---|---|---|
-| Decision engine: manifest resolution, canonical request validation, principal-chain verification, consequence class, allow/deny/approval-required with obligations | Planned | none |
-| Policy evaluator selection by implementation spike and hub decision record | Planned | none |
-| Canonicalization and request hashing per the hub's specification and golden vectors | Planned | none |
-| Deterministic decision replay from a pinned input bundle | Planned | none |
+| Decision engine with privileged identity/Registry adapters and typed outcomes | Experimental | [Stage 1](docs/stage1.md), [tests](tests/decision.rs) |
+| Bounded native OPA worker; formal engine acceptance pending | Experimental | [Worker and controls](docs/stage1.md#evaluator-profile) |
+| Canonical request validation and hashing against unchanged candidate vectors | Experimental | [Tests](tests/decision.rs) |
+| Deterministic decision replay from a pinned input bundle | Experimental | [Persisted replay](docs/stage1.md) |
 | Fake-target execution lifecycle for tests | Planned | none |
 | Durable execution journal: claim, grant consumption, fencing, crash recovery, unresolved state | Planned | none |
 | Isolated connector host with a disposable reference connector | Planned | none |
@@ -202,7 +202,7 @@ repository is at **repository created**.
 | Real enterprise target connectors | Deferred; each has its own conformance record | none |
 
 Supported contract versions: **none**. Supported deployment profiles: **none**. Qualified action
-paths: **none**. Operations available today: **none**.
+paths: **none**. Experimental library operations are documented in [Stage 1](docs/stage1.md).
 
 ## Acceptance evidence for the first releases
 
@@ -263,7 +263,8 @@ tested path remains constrained when the request does not.
   connector credentials; **Council** supplies approval where the consequence class requires it;
   **Harness** is the client; **Sentinel** reads Gate's records; **Console** explains its
   decisions.
-- **External dependencies.** None chosen; the policy evaluator is selected by the recorded spike.
+- **External dependencies.** See [Cargo.toml](Cargo.toml), the lockfile and
+  [dependency notices](THIRD_PARTY_NOTICES.md). Stage 1 choices remain experimental.
 
 ## Not in scope
 
@@ -294,8 +295,8 @@ removed to preserve a date.
 
 | Path | What exists |
 |---|---|
-| [Cargo.toml](Cargo.toml), [Cargo.lock](Cargo.lock) | Independent library, version 0.1.0-dev, publishing disabled, no external crate dependencies |
-| [src/lib.rs](src/lib.rs) | Documented proposed module interfaces; no runtime implementations |
+| [Cargo.toml](Cargo.toml), [Cargo.lock](Cargo.lock) | Independent library, version 0.1.0-dev, publishing disabled, reviewed locked dependencies |
+| [src/lib.rs](src/lib.rs) | Experimental decision implementation and proposed later-stage interfaces |
 | [docs/](docs/README.md) | Architecture, implementation sequence and acceptance specifications |
 | [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md) | Contribution process and aligned development guidance |
 | [.github/workflows/](.github/workflows/) | Automatic Rust, repository-hygiene and DCO checks |
@@ -303,14 +304,15 @@ removed to preserve a date.
 | [LICENSE](LICENSE), [NOTICE](NOTICE), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Licensing and dependency notices |
 
 Subsystem modules: [evaluation](src/evaluation.rs), [journal](src/journal.rs), [connector](src/connector.rs).
-Tests, fixtures, migrations, binaries and deployment assets arrive with the implementation that
-uses them. The scaffold defines no shared wire types and depends on no sibling checkout.
+Stage 1 tests and candidate fixtures are implemented. The ordinary component build depends on
+no sibling checkout; Harness owns the separate experimental composition.
 
 ## Development
 
 Use Rust 1.98.1 with rustfmt, Clippy and the platform's native linker. From this repository root:
 
 ```console
+cargo fetch --locked
 cargo fmt --all --check
 cargo build --offline --locked
 cargo clippy --offline --locked --all-targets -- -D warnings
@@ -318,9 +320,8 @@ cargo test --offline --locked
 cargo doc --offline --locked --no-deps
 ```
 
-The crate currently has **zero runtime or conformance tests**. A successful test command checks
-the scaffold only. The [validation guide](docs/validation.md) gives the required behavioral
-test specifications and explains how to retain evidence when they are implemented.
+The [Stage 1 guide](docs/stage1.md) names the implemented tests and remaining coverage.
+The [validation guide](docs/validation.md) retains the broader acceptance specifications.
 
 Also run the existing hygiene gates:
 

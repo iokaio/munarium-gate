@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "repository": "https://github.com/iokaio/munarium-warden",
+  "source": "content-addressed workspace export; not a release",
+  "files": {
+    "service_transport.rs": "42d9f2461e5b1ab81e9d45c35dbb36dffdeb4d2d43e88d5651569120ed84ac21",
+    "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "NOTICE": "54a16ea45c469eb61da340d6cc5ef99512d05b81496f8b0a378fd44607d89203"
+  }
+}

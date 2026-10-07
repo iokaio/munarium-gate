@@ -23,9 +23,10 @@ Governance Platform whose first useful public increment is a replayable decision
 
 ## Current state
 
-This repository contains governance documents, indexed build guides and a dependency-free,
-non-publishable Rust library scaffold. Its modules declare proposed local interfaces only;
-there is no runtime implementation, service, wire schema or qualified capability.
+This repository contains governance documents, indexed build guides and Stage 1
+implementation. The component README and validation guide describe the implemented
+surfaces and remaining gaps; the Stage 1 authorization below permits their development
+without claiming accepted contracts or production qualification.
 Read [docs/README.md](docs/README.md) and the relevant module before implementation.
 Consequences for any task:
 
@@ -46,6 +47,33 @@ tools are available. Reuse local build caches and batch related fixes before
 pushing. Record what ran, the results and any unavailable checks in the PR. Do
 not claim skipped tests passed. Automatic CI retains its configured suites; local
 checks supplement that coverage. Keep AGENTS.md and CLAUDE.md aligned.
+
+## Stage 1 development authorization
+
+The maintainer has authorized implementation of both Stage 1 rows in the parallel
+build plan and the supporting guidance and CI changes (6 October 2026). See the
+[scope and acceptance boundary](https://github.com/iokaio/munarium-platform/blob/main/docs/stage1-authorization.md). This covers the hub,
+Server, Registry, Warden, Gate and Harness, including required S1 bootstrap authority,
+S2/S3/S4 and minimum S6 foundation work, provider identity admission, authenticated
+service transport and decision-only integration. Proceed with necessary source,
+tests, pinned dependencies, additive migrations, documentation and build/test
+workflow edits without requesting that permission again.
+
+This is the scoped maintainer authorization for affected protected guidance,
+build/test workflows and contract candidate preparation. Record shared semantic
+choices in a hub decision record before consumer implementation. Proposed status
+permits experimental implementation and testing within this packet; preserve
+existing contract versions and golden vectors, and export/re-vendor new candidates
+through the documented process. It does not record human contract acceptance.
+
+Disposable local/CI tests may generate isolated test-only keys, certificates,
+identities, bootstrap authority and operator bindings without production trust.
+Submitted candidates remain inactive; no execution grant or target effect is in
+Stage 1. Keep secrets out of tracked files and logs. Preserve required checks,
+read-only CI permissions, ownership, trusted approval/release workflows and signing
+policy. This grant does not authorize publication, merge, deployment, paid resources
+or production credential operations. Complete implementation and review evidence
+before seeking any separately required acceptance or operational approval.
 
 ## Establish the task and protect existing work
 
@@ -172,7 +200,7 @@ Consult CONTRIBUTING.md and the CI workflows for the exact commands. Today they 
 |---|---|
 | Every contribution | From root: `py check_license.py`, `py scripts/private_material_scan.py`, `py scripts/docs_linkcheck.py`, `gitleaks dir . --config .gitleaks.toml`, and `git diff --check` |
 | Documentation | Every relative link resolves; every page under `docs/` is listed from an index; the README's status and capability table still describe the tree |
-| Rust scaffold | Rust 1.98.1: `cargo fmt --all --check`, `cargo build --offline --locked`, `cargo clippy --offline --locked --all-targets -- -D warnings`, `cargo test --offline --locked`, `cargo doc --offline --locked --no-deps`; no external dependencies or behavioral tests yet |
+| Rust implementation | Rust 1.98.1: `cargo fmt --all --check`, `cargo build --offline --locked`, `cargo clippy --offline --locked --all-targets -- -D warnings`, `cargo test --offline --locked`, `cargo doc --offline --locked --no-deps`; fetch locked public dependencies before offline checks when needed |
 
 Use `python` or `python3` where `py` is unavailable. Never invent a successful
 run. Report failed, skipped, unavailable and model-dependent checks distinctly.

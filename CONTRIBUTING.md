@@ -37,9 +37,12 @@ evidence is not useful capacity because it arrived through a pull request.
 2. Run the gates below. Every new source file carries `SPDX-License-Identifier: Apache-2.0` on its
    first line, the second after a shebang or an XML declaration, and `check_license.py` names any
    file that does not.
-3. Open a pull request against `main`. Public CI runs offline with no private credential. Nothing in
-   a pull request can reach a registry, a deployment, a signing key or an activated policy; anything
-   that needs a deployed environment runs on `main` after merge, never on a pull request from a fork.
+3. Open a pull request against `main`. Public CI may fetch pinned public dependencies,
+   then run offline suites and isolated service tests with synthetic data. Disposable
+   test-only identities, keys and bootstrap bindings have no production trust. Pull
+   requests, including forks, receive no production credentials, deployed-environment
+   access or release authority. Checks needing those resources use a separately
+   authorized trusted environment after merge.
 4. A code owner reviews ([.github/CODEOWNERS](.github/CODEOWNERS)); Ioka squash-merges. External
    pull requests never gain deployment or release authority.
 
@@ -69,9 +72,9 @@ declared version policy.
 
 Use `python` or `python3` where `py` is unavailable. Rust checks use 1.98.1 with rustfmt
 and Clippy; the new [Rust workflow](.github/workflows/rust.yml) installs that version explicitly.
-The crate has no external dependencies; commit the lockfile and review/pin dependencies when
-implementation introduces them. [Validation](docs/validation.md) distinguishes scaffold checks
-from future acceptance tests. There are no runtime or conformance tests yet.
+Commit the lockfile and review/pin dependencies. Fetch locked public dependencies before
+running the offline checks. [Validation](docs/validation.md) records implemented checks
+and remaining acceptance gaps; passing component tests does not qualify the platform.
 The workflows under `.github/workflows/` are the source of truth for automatic coverage.
 Add component conformance coverage with each behavior; keep existing automatic suites intact.
 
@@ -106,3 +109,9 @@ Only Ioka changes `LICENSE`, `NOTICE`, `TRADEMARK.md`, this file, `CODE_OF_CONDU
 `SECURITY.md`, `SUPPORT.md`, `AGENTS.md` and `CLAUDE.md`, anything under `.github/`, any contract or
 vendored contract directory, and any signing or release configuration. A pull request that touches
 them is declined unless a maintainer opened it.
+
+The [Stage 1 development authorization](AGENTS.md#stage-1-development-authorization)
+is the maintainer's explicit direction to prepare the scoped guidance, build/test
+workflow and contract candidate changes. Contributors carrying out that direction
+may edit those files; protected-file ownership, review and merge requirements still
+apply. It grants no release authority or permission to weaken approval controls.
