@@ -4,8 +4,8 @@
 //! Deterministic decisions, durable execution claims, and isolated connector dispatch.
 //!
 //! The decision module implements the proposed Stage 1 candidate contracts.
-//! Other modules retain proposed later-stage interfaces. There is no network listener
-//! or execution admission. No production path is qualified.
+//! Activation modules implement a PostgreSQL barrier used by the authenticated service.
+//! Execution admission remains unavailable. No production path is qualified.
 //! See `docs/architecture.md` and `docs/implementation-plan.md` in this repository.
 //!
 //! The interfaces are provisional and may change before the first implementation.
@@ -13,6 +13,9 @@
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
+
+pub mod activation;
+pub mod activation_wire;
 
 pub mod connector;
 pub mod decision;

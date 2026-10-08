@@ -17,6 +17,18 @@ jobs:
   rust:
     name: Rust formatting, build, lint, test and docs
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16@sha256:65b16a8b326e0cfbdf33fa7e783f2a0cb352a61448616ccccfd616ef42aa0f65
+        env:
+          POSTGRES_DB: stage2_gate
+          POSTGRES_USER: stage2_test
+          POSTGRES_PASSWORD: stage2-test-only
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U stage2_test -d stage2_gate"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -33,6 +45,14 @@ jobs:
         run: cargo +1.98.1 clippy --offline --locked --all-targets -- -D warnings
       - name: Test
         run: cargo +1.98.1 test --offline --locked
+      - name: PostgreSQL activation races and restart
+        env:
+          GATE_TEST_DATABASE_URL: postgres://stage2_test:stage2-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/stage2_gate
+        run: cargo +1.98.1 test --offline --locked --test activation -- --ignored
+      - name: Native mTLS activation service
+        env:
+          GATE_TEST_DATABASE_URL: postgres://stage2_test:stage2-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/stage2_gate
+        run: python3 scripts/test_activation_service.py -v
       - name: Documentation
         env:
           RUSTDOCFLAGS: -D warnings

@@ -7,6 +7,13 @@ this inventory does not replace their terms or claim a vulnerability audit.
 The proposed JSON vectors/schemas come unchanged from the public Apache-2.0 platform hub;
 contracts/stage1/vendor-lock.json records their revision and hashes.
 
+Stage 2 activation uses the unchanged hub candidate under contracts/stage2-v1,
+with its immutable bundle/source lock. The dependency table was refreshed from
+locked Cargo metadata on 7 October 2026. SQLx core/PostgreSQL 0.8.6 retain their
+MIT OR Apache-2.0 terms; no database engine is embedded or redistributed.
+Native mTLS fixture construction follows the public Apache-2.0 Council component
+test pattern (iokaio/munarium-council, revision 6ea0822).
+
 The separately downloaded OPA 1.21.1 evaluator is Apache-2.0, from
 [open-policy-agent/opa](https://github.com/open-policy-agent/opa). Its exact binary pin and
 reproducible-build limitation are in [Stage 1](docs/stage1.md). It is not redistributed.
@@ -16,6 +23,8 @@ Python is operator-supplied under its PSF license; the worker requires no third-
 |---|---|---|---|
 | ahash | 0.8.12 | MIT OR Apache-2.0 | [source](https://github.com/tkaitchuck/ahash) |
 | aho-corasick | 1.1.5 | Unlicense OR MIT | [source](https://github.com/BurntSushi/aho-corasick) |
+| allocator-api2 | 0.2.21 | MIT OR Apache-2.0 | [source](https://github.com/zakarumych/allocator-api2) |
+| atoi | 2.0.0 | MIT | [source](https://github.com/pacman82/atoi-rs) |
 | atomic-waker | 1.1.2 | Apache-2.0 OR MIT | [source](https://github.com/smol-rs/atomic-waker) |
 | autocfg | 1.5.1 | Apache-2.0 OR MIT | [source](https://github.com/cuviper/autocfg) |
 | axum | 0.8.9 | MIT | [source](https://github.com/tokio-rs/axum) |
@@ -30,6 +39,7 @@ Python is operator-supplied under its PSF license; the worker requires no third-
 | borrow-or-share | 0.2.4 | MIT-0 | [source](https://github.com/yescallop/borrow-or-share) |
 | bumpalo | 3.20.3 | MIT OR Apache-2.0 | [source](https://github.com/fitzgen/bumpalo) |
 | bytecount | 0.6.9 | Apache-2.0/MIT | [source](https://github.com/llogiq/bytecount) |
+| byteorder | 1.5.0 | Unlicense OR MIT | [source](https://github.com/BurntSushi/byteorder) |
 | bytes | 1.12.1 | MIT | [source](https://github.com/tokio-rs/bytes) |
 | cc | 1.6.0 | MIT OR Apache-2.0 | [source](https://github.com/rust-lang/cc-rs) |
 | cfg-if | 1.0.5 | MIT OR Apache-2.0 | [source](https://github.com/rust-lang/cfg-if) |
@@ -38,16 +48,25 @@ Python is operator-supplied under its PSF license; the worker requires no third-
 | const-oid | 0.9.6 | Apache-2.0 OR MIT | [source](https://github.com/RustCrypto/formats/tree/master/const-oid) |
 | cpufeatures | 0.2.17 | MIT OR Apache-2.0 | [source](https://github.com/RustCrypto/utils) |
 | cpufeatures | 0.3.1 | MIT OR Apache-2.0 | [source](https://github.com/RustCrypto/utils) |
+| crc | 3.4.0 | MIT OR Apache-2.0 | [source](https://github.com/mrhooray/crc-rs.git) |
+| crc-catalog | 2.5.0 | MIT OR Apache-2.0 | [source](https://github.com/akhilles/crc-catalog.git) |
+| crossbeam-queue | 0.3.13 | MIT OR Apache-2.0 | [source](https://github.com/crossbeam-rs/crossbeam) |
+| crossbeam-utils | 0.8.22 | MIT OR Apache-2.0 | [source](https://github.com/crossbeam-rs/crossbeam) |
 | crypto-common | 0.1.7 | MIT OR Apache-2.0 | [source](https://github.com/RustCrypto/traits) |
 | curve25519-dalek | 4.1.3 | BSD-3-Clause | [source](https://github.com/dalek-cryptography/curve25519-dalek/tree/main/curve25519-dalek) |
 | curve25519-dalek-derive | 0.1.1 | MIT/Apache-2.0 | [source](https://github.com/dalek-cryptography/curve25519-dalek) |
 | der | 0.7.10 | Apache-2.0 OR MIT | [source](https://github.com/RustCrypto/formats/tree/master/der) |
 | digest | 0.10.7 | MIT OR Apache-2.0 | [source](https://github.com/RustCrypto/traits) |
 | displaydoc | 0.2.7 | MIT OR Apache-2.0 | [source](https://github.com/yaahc/displaydoc) |
+| dotenvy | 0.15.7 | MIT | [source](https://github.com/allan2/dotenvy) |
 | ed25519 | 2.2.3 | Apache-2.0 OR MIT | [source](https://github.com/RustCrypto/signatures/tree/master/ed25519) |
 | ed25519-dalek | 2.2.0 | BSD-3-Clause | [source](https://github.com/dalek-cryptography/curve25519-dalek/tree/main/ed25519-dalek) |
+| either | 1.18.0 | MIT OR Apache-2.0 | [source](https://github.com/rayon-rs/either) |
 | email_address | 0.2.9 | MIT | [source](https://github.com/johnstonskj/rust-email_address.git) |
+| equivalent | 1.0.2 | Apache-2.0 OR MIT | [source](https://github.com/indexmap-rs/equivalent) |
 | errno | 0.3.14 | MIT OR Apache-2.0 | [source](https://github.com/lambda-fairy/rust-errno) |
+| etcetera | 0.8.0 | MIT OR Apache-2.0 | [source](https://github.com/lunacookies/etcetera) |
+| event-listener | 5.4.2 | Apache-2.0 OR MIT | [source](https://github.com/smol-rs/event-listener) |
 | fallible-iterator | 0.3.0 | MIT/Apache-2.0 | [source](https://github.com/sfackler/rust-fallible-iterator) |
 | fallible-streaming-iterator | 0.1.9 | MIT/Apache-2.0 | [source](https://github.com/sfackler/fallible-streaming-iterator) |
 | fancy-regex | 0.14.0 | MIT | [source](https://github.com/fancy-regex/fancy-regex) |
@@ -60,6 +79,9 @@ Python is operator-supplied under its PSF license; the worker requires no third-
 | fraction | 0.15.4 | MIT OR Apache-2.0 | [source](https://github.com/dnsl48/fraction.git) |
 | futures-channel | 0.3.34 | MIT OR Apache-2.0 | [source](https://github.com/rust-lang/futures-rs) |
 | futures-core | 0.3.34 | MIT OR Apache-2.0 | [source](https://github.com/rust-lang/futures-rs) |
+| futures-intrusive | 0.5.0 | MIT OR Apache-2.0 | [source](https://github.com/Matthias247/futures-intrusive) |
+| futures-io | 0.3.34 | MIT OR Apache-2.0 | [source](https://github.com/rust-lang/futures-rs) |
+| futures-sink | 0.3.34 | MIT OR Apache-2.0 | [source](https://github.com/rust-lang/futures-rs) |
 | futures-task | 0.3.34 | MIT OR Apache-2.0 | [source](https://github.com/rust-lang/futures-rs) |
 | futures-util | 0.3.34 | MIT OR Apache-2.0 | [source](https://github.com/rust-lang/futures-rs) |
 | generic-array | 0.14.7 | MIT | [source](https://github.com/fizyk20/generic-array.git) |
@@ -67,7 +89,12 @@ Python is operator-supplied under its PSF license; the worker requires no third-
 | getrandom | 0.3.4 | MIT OR Apache-2.0 | [source](https://github.com/rust-random/getrandom) |
 | getrandom | 0.4.3 | MIT OR Apache-2.0 | [source](https://github.com/rust-random/getrandom) |
 | hashbrown | 0.15.5 | MIT OR Apache-2.0 | [source](https://github.com/rust-lang/hashbrown) |
+| hashbrown | 0.17.1 | MIT OR Apache-2.0 | [source](https://github.com/rust-lang/hashbrown) |
 | hashlink | 0.10.0 | MIT OR Apache-2.0 | [source](https://github.com/kyren/hashlink) |
+| hex | 0.4.3 | MIT OR Apache-2.0 | [source](https://github.com/KokaKiwi/rust-hex) |
+| hkdf | 0.12.4 | MIT OR Apache-2.0 | [source](https://github.com/RustCrypto/KDFs/) |
+| hmac | 0.12.1 | MIT OR Apache-2.0 | [source](https://github.com/RustCrypto/MACs) |
+| home | 0.5.12 | MIT OR Apache-2.0 | [source](https://github.com/rust-lang/cargo) |
 | http | 1.5.0 | MIT OR Apache-2.0 | [source](https://github.com/hyperium/http) |
 | http-body | 1.1.0 | MIT | [source](https://github.com/hyperium/http-body) |
 | http-body-util | 0.1.5 | MIT | [source](https://github.com/hyperium/http-body) |
@@ -85,18 +112,22 @@ Python is operator-supplied under its PSF license; the worker requires no third-
 | icu_provider | 2.3.1 | Unicode-3.0 | [source](https://github.com/unicode-org/icu4x) |
 | idna | 1.1.0 | MIT OR Apache-2.0 | [source](https://github.com/servo/rust-url/) |
 | idna_adapter | 1.2.2 | Apache-2.0 OR MIT | [source](https://github.com/hsivonen/idna_adapter) |
+| indexmap | 2.14.0 | Apache-2.0 OR MIT | [source](https://github.com/indexmap-rs/indexmap) |
 | ipnet | 2.12.2 | MIT OR Apache-2.0 | [source](https://github.com/krisprice/ipnet) |
 | itoa | 1.0.18 | MIT OR Apache-2.0 | [source](https://github.com/dtolnay/itoa) |
 | js-sys | 0.3.106 | MIT OR Apache-2.0 | [source](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys) |
 | jsonschema | 0.26.2 | MIT | [source](https://github.com/Stranger6667/jsonschema) |
 | lazy_static | 1.5.1 | MIT OR Apache-2.0 | [source](https://github.com/rust-lang-nursery/lazy-static.rs) |
 | libc | 0.2.190 | MIT OR Apache-2.0 | [source](https://github.com/rust-lang/libc) |
+| libredox | 0.1.19 | MIT | [source](https://gitlab.redox-os.org/redox-os/libredox.git) |
 | libsqlite3-sys | 0.35.0 | MIT | [source](https://github.com/rusqlite/rusqlite) |
 | linux-raw-sys | 0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | [source](https://github.com/sunfishcode/linux-raw-sys) |
 | litemap | 0.8.3 | Unicode-3.0 | [source](https://github.com/unicode-org/icu4x) |
+| lock_api | 0.4.14 | MIT OR Apache-2.0 | [source](https://github.com/Amanieu/parking_lot) |
 | log | 0.4.34 | MIT OR Apache-2.0 | [source](https://github.com/rust-lang/log) |
 | lru-slab | 0.1.3 | MIT OR Apache-2.0 OR Zlib | [source](https://github.com/Ralith/lru-slab) |
 | matchit | 0.8.4 | MIT AND BSD-3-Clause | [source](https://github.com/ibraheemdev/matchit) |
+| md-5 | 0.10.6 | MIT OR Apache-2.0 | [source](https://github.com/RustCrypto/hashes) |
 | memchr | 2.8.3 | Unlicense OR MIT | [source](https://github.com/BurntSushi/memchr) |
 | mime | 0.3.17 | MIT OR Apache-2.0 | [source](https://github.com/hyperium/mime) |
 | mio | 1.2.4 | MIT | [source](https://github.com/tokio-rs/mio) |
@@ -110,11 +141,16 @@ Python is operator-supplied under its PSF license; the worker requires no third-
 | num-traits | 0.2.19 | MIT OR Apache-2.0 | [source](https://github.com/rust-num/num-traits) |
 | once_cell | 1.21.4 | MIT OR Apache-2.0 | [source](https://github.com/matklad/once_cell) |
 | outref | 0.5.2 | MIT | [source](https://github.com/Nugine/outref) |
+| parking | 2.2.1 | Apache-2.0 OR MIT | [source](https://github.com/smol-rs/parking) |
+| parking_lot | 0.12.5 | MIT OR Apache-2.0 | [source](https://github.com/Amanieu/parking_lot) |
+| parking_lot_core | 0.9.12 | MIT OR Apache-2.0 | [source](https://github.com/Amanieu/parking_lot) |
 | percent-encoding | 2.3.2 | MIT OR Apache-2.0 | [source](https://github.com/servo/rust-url/) |
 | pin-project-lite | 0.2.17 | Apache-2.0 OR MIT | [source](https://github.com/taiki-e/pin-project-lite) |
 | pkcs8 | 0.10.2 | Apache-2.0 OR MIT | [source](https://github.com/RustCrypto/formats/tree/master/pkcs8) |
 | pkg-config | 0.3.34 | MIT OR Apache-2.0 | [source](https://github.com/rust-lang/pkg-config-rs) |
+| plain | 0.2.3 | MIT/Apache-2.0 | [source](https://github.com/randomites/plain) |
 | potential_utf | 0.1.6 | Unicode-3.0 | [source](https://github.com/unicode-org/icu4x) |
+| ppv-lite86 | 0.2.21 | MIT OR Apache-2.0 | [source](https://github.com/cryptocorrosion/cryptocorrosion) |
 | proc-macro2 | 1.0.107 | MIT OR Apache-2.0 | [source](https://github.com/dtolnay/proc-macro2) |
 | quinn | 0.11.12 | MIT OR Apache-2.0 | [source](https://github.com/quinn-rs/quinn) |
 | quinn-proto | 0.11.19 | MIT OR Apache-2.0 | [source](https://github.com/quinn-rs/quinn) |
@@ -123,9 +159,13 @@ Python is operator-supplied under its PSF license; the worker requires no third-
 | r-efi | 5.3.0 | MIT OR Apache-2.0 OR LGPL-2.1-or-later | [source](https://github.com/r-efi/r-efi) |
 | r-efi | 6.0.0 | MIT OR Apache-2.0 OR LGPL-2.1-or-later | [source](https://github.com/r-efi/r-efi) |
 | rand | 0.10.3 | MIT OR Apache-2.0 | [source](https://github.com/rust-random/rand) |
+| rand | 0.8.8 | MIT OR Apache-2.0 | [source](https://github.com/rust-random/rand) |
+| rand_chacha | 0.3.1 | MIT OR Apache-2.0 | [source](https://github.com/rust-random/rand) |
 | rand_core | 0.10.1 | MIT OR Apache-2.0 | [source](https://github.com/rust-random/rand_core) |
 | rand_core | 0.6.4 | MIT OR Apache-2.0 | [source](https://github.com/rust-random/rand) |
 | rand_pcg | 0.10.2 | MIT OR Apache-2.0 | [source](https://github.com/rust-random/rngs) |
+| redox_syscall | 0.5.18 | MIT | [source](https://gitlab.redox-os.org/redox-os/syscall) |
+| redox_syscall | 0.9.1 | MIT | [source](https://gitlab.redox-os.org/redox-os/syscall) |
 | ref-cast | 1.0.26 | MIT OR Apache-2.0 | [source](https://github.com/dtolnay/ref-cast) |
 | ref-cast-impl | 1.0.26 | MIT OR Apache-2.0 | [source](https://github.com/dtolnay/ref-cast) |
 | referencing | 0.26.2 | MIT | [source](https://github.com/Stranger6667/jsonschema) |
@@ -143,6 +183,7 @@ Python is operator-supplied under its PSF license; the worker requires no third-
 | rustls-webpki | 0.103.15 | ISC | [source](https://github.com/rustls/webpki) |
 | rustversion | 1.0.23 | MIT OR Apache-2.0 | [source](https://github.com/dtolnay/rustversion) |
 | ryu | 1.0.23 | Apache-2.0 OR BSL-1.0 | [source](https://github.com/dtolnay/ryu) |
+| scopeguard | 1.2.0 | MIT OR Apache-2.0 | [source](https://github.com/bluss/scopeguard) |
 | semver | 1.0.28 | MIT OR Apache-2.0 | [source](https://github.com/dtolnay/semver) |
 | serde | 1.0.228 | MIT OR Apache-2.0 | [source](https://github.com/serde-rs/serde) |
 | serde_core | 1.0.228 | MIT OR Apache-2.0 | [source](https://github.com/serde-rs/serde) |
@@ -158,7 +199,10 @@ Python is operator-supplied under its PSF license; the worker requires no third-
 | smallvec | 1.16.2 | MIT OR Apache-2.0 | [source](https://github.com/servo/rust-smallvec) |
 | socket2 | 0.6.5 | MIT OR Apache-2.0 | [source](https://github.com/rust-lang/socket2) |
 | spki | 0.7.3 | Apache-2.0 OR MIT | [source](https://github.com/RustCrypto/formats/tree/master/spki) |
+| sqlx-core | 0.8.6 | MIT OR Apache-2.0 | [source](https://github.com/launchbadge/sqlx) |
+| sqlx-postgres | 0.8.6 | MIT OR Apache-2.0 | [source](https://github.com/launchbadge/sqlx) |
 | stable_deref_trait | 1.2.1 | MIT OR Apache-2.0 | [source](https://github.com/storyyeller/stable_deref_trait) |
+| stringprep | 0.1.5 | MIT/Apache-2.0 | [source](https://github.com/sfackler/rust-stringprep) |
 | subtle | 2.6.1 | BSD-3-Clause | [source](https://github.com/dalek-cryptography/subtle) |
 | syn | 2.0.119 | MIT OR Apache-2.0 | [source](https://github.com/dtolnay/syn) |
 | syn | 3.0.6 | MIT OR Apache-2.0 | [source](https://github.com/dtolnay/syn) |
@@ -172,15 +216,20 @@ Python is operator-supplied under its PSF license; the worker requires no third-
 | tokio | 1.53.1 | MIT | [source](https://github.com/tokio-rs/tokio) |
 | tokio-macros | 2.7.2 | MIT | [source](https://github.com/tokio-rs/tokio) |
 | tokio-rustls | 0.26.4 | MIT OR Apache-2.0 | [source](https://github.com/rustls/tokio-rustls) |
+| tokio-stream | 0.1.19 | MIT | [source](https://github.com/tokio-rs/tokio) |
 | tower | 0.5.3 | MIT | [source](https://github.com/tower-rs/tower) |
 | tower-http | 0.6.11 | MIT | [source](https://github.com/tower-rs/tower-http) |
 | tower-layer | 0.3.3 | MIT | [source](https://github.com/tower-rs/tower) |
 | tower-service | 0.3.3 | MIT | [source](https://github.com/tower-rs/tower) |
 | tracing | 0.1.44 | MIT | [source](https://github.com/tokio-rs/tracing) |
+| tracing-attributes | 0.1.31 | MIT | [source](https://github.com/tokio-rs/tracing) |
 | tracing-core | 0.1.36 | MIT | [source](https://github.com/tokio-rs/tracing) |
 | try-lock | 0.2.5 | MIT | [source](https://github.com/seanmonstar/try-lock) |
 | typenum | 1.20.1 | MIT OR Apache-2.0 | [source](https://github.com/paholg/typenum) |
+| unicode-bidi | 0.3.18 | MIT OR Apache-2.0 | [source](https://github.com/servo/unicode-bidi) |
 | unicode-ident | 1.0.26 | (MIT OR Apache-2.0) AND Unicode-3.0 | [source](https://github.com/dtolnay/unicode-ident) |
+| unicode-normalization | 0.1.25 | MIT OR Apache-2.0 | [source](https://github.com/unicode-rs/unicode-normalization) |
+| unicode-properties | 0.1.4 | MIT/Apache-2.0 | [source](https://github.com/unicode-rs/unicode-properties) |
 | untrusted | 0.9.0 | ISC | [source](https://github.com/briansmith/untrusted) |
 | url | 2.5.8 | MIT OR Apache-2.0 | [source](https://github.com/servo/rust-url) |
 | utf8_iter | 1.0.4 | Apache-2.0 OR MIT | [source](https://github.com/hsivonen/utf8_iter) |
@@ -192,6 +241,7 @@ Python is operator-supplied under its PSF license; the worker requires no third-
 | want | 0.3.2 | MIT | [source](https://github.com/seanmonstar/want) |
 | wasi | 0.11.1+wasi-snapshot-preview1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | [source](https://github.com/bytecodealliance/wasi) |
 | wasip2 | 1.0.4+wasi-0.2.12 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | [source](https://github.com/bytecodealliance/wasi-rs) |
+| wasite | 0.1.0 | Apache-2.0 OR BSL-1.0 OR MIT | [source](https://github.com/ardaku/wasite) |
 | wasm-bindgen | 0.2.129 | MIT OR Apache-2.0 | [source](https://github.com/wasm-bindgen/wasm-bindgen) |
 | wasm-bindgen-futures | 0.4.79 | MIT OR Apache-2.0 | [source](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/futures) |
 | wasm-bindgen-macro | 0.2.129 | MIT OR Apache-2.0 | [source](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro) |
@@ -199,18 +249,29 @@ Python is operator-supplied under its PSF license; the worker requires no third-
 | wasm-bindgen-shared | 0.2.129 | MIT OR Apache-2.0 | [source](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/shared) |
 | web-sys | 0.3.106 | MIT OR Apache-2.0 | [source](https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/web-sys) |
 | web-time | 1.1.0 | MIT OR Apache-2.0 | [source](https://github.com/daxpedda/web-time) |
+| webpki-roots | 0.26.11 | CDLA-Permissive-2.0 | [source](https://github.com/rustls/webpki-roots) |
 | webpki-roots | 1.0.9 | CDLA-Permissive-2.0 | [source](https://github.com/rustls/webpki-roots) |
+| whoami | 1.6.1 | Apache-2.0 OR BSL-1.0 OR MIT | [source](https://github.com/ardaku/whoami) |
 | windows-link | 0.2.1 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
+| windows-sys | 0.48.0 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
 | windows-sys | 0.52.0 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
 | windows-sys | 0.61.2 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
+| windows-targets | 0.48.5 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
 | windows-targets | 0.52.6 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
+| windows_aarch64_gnullvm | 0.48.5 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
 | windows_aarch64_gnullvm | 0.52.6 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
+| windows_aarch64_msvc | 0.48.5 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
 | windows_aarch64_msvc | 0.52.6 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
+| windows_i686_gnu | 0.48.5 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
 | windows_i686_gnu | 0.52.6 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
 | windows_i686_gnullvm | 0.52.6 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
+| windows_i686_msvc | 0.48.5 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
 | windows_i686_msvc | 0.52.6 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
+| windows_x86_64_gnu | 0.48.5 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
 | windows_x86_64_gnu | 0.52.6 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
+| windows_x86_64_gnullvm | 0.48.5 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
 | windows_x86_64_gnullvm | 0.52.6 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
+| windows_x86_64_msvc | 0.48.5 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
 | windows_x86_64_msvc | 0.52.6 | MIT OR Apache-2.0 | [source](https://github.com/microsoft/windows-rs) |
 | wit-bindgen | 0.57.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | [source](https://github.com/bytecodealliance/wit-bindgen) |
 | writeable | 0.6.4 | Unicode-3.0 | [source](https://github.com/unicode-org/icu4x) |

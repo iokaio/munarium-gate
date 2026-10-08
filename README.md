@@ -195,6 +195,7 @@ repository is at **repository created**.
 | Deterministic decision replay from a pinned input bundle | Experimental | [Persisted replay](docs/stage1.md) |
 | Fake-target execution lifecycle for tests | Planned | none |
 | Durable execution journal: claim, grant consumption, fencing, crash recovery, unresolved state | Planned | none |
+| PostgreSQL activation pause, epoch installation and complete-receipt barrier | Experimental | [Activation profile](docs/activation-profile.md), [tests](tests/activation.rs); no execution path |
 | Isolated connector host with a disposable reference connector | Planned | none |
 | Native Action API over REST | Planned | none |
 | MCP adapter to the Action API | Planned | none |
