@@ -178,6 +178,25 @@ async fn fresh(rt: &Runtime, tenant: &str, state: &Value) -> Result<(), E> {
     }
     Ok(())
 }
+fn current_artifacts(state: &Value, registry: &str, request: &Value) -> Result<(), E> {
+    let artifacts = state["artifact"]["bindings"][format!("stage2:{registry}")]["artifacts"]
+        .as_array()
+        .ok_or(E::Refused)?;
+    for kind in ["manifest", "policy"] {
+        let digest = &request["context"][format!("{kind}_digest")];
+        let matches: Vec<_> = artifacts
+            .iter()
+            .filter(|a| a["kind"] == kind && a["digest"] == *digest)
+            .collect();
+        if matches.len() != 1
+            || matches[0]["retired"] != false
+            || matches[0]["profile"] != "stage2-single-cell-v1"
+        {
+            return Err(E::Refused);
+        }
+    }
+    Ok(())
+}
 async fn admitted(rt: &Runtime, peer: &Peer, body: &[u8]) -> Result<Value, E> {
     let _permit = rt
         .activation_permits
@@ -264,6 +283,7 @@ async fn admitted(rt: &Runtime, peer: &Peer, body: &[u8]) -> Result<Value, E> {
                 return Err(E::Refused);
             }
             let s = source(&p, &operation_id)?;
+            current_artifacts(&state, &rt.config.registry_service, &s["request"])?;
             if s["request"]["attempt"]["id"] != attempt_id {
                 return Err(E::Refused);
             }
@@ -452,4 +472,27 @@ pub(super) async fn operate(
             Json(json!({"error":e.to_string()})),
         )
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn prepared_source_requires_unique_current_nonretired_artifacts() {
+        let request = json!({"context":{"manifest_digest":"manifest","policy_digest":"policy"}});
+        let mut state = json!({"artifact":{"bindings":{"stage2:registry":{"artifacts":[
+            {"kind":"manifest","digest":"manifest","retired":false,"profile":"stage2-single-cell-v1"},
+            {"kind":"policy","digest":"policy","retired":false,"profile":"stage2-single-cell-v1"}]}}}});
+        current_artifacts(&state, "registry", &request).unwrap();
+        state["artifact"]["bindings"]["stage2:registry"]["artifacts"][0]["retired"] = json!(true);
+        assert!(current_artifacts(&state, "registry", &request).is_err());
+        state["artifact"]["bindings"]["stage2:registry"]["artifacts"][0]["retired"] = json!(false);
+        let duplicate = state["artifact"]["bindings"]["stage2:registry"]["artifacts"][0].clone();
+        state["artifact"]["bindings"]["stage2:registry"]["artifacts"]
+            .as_array_mut()
+            .unwrap()
+            .push(duplicate);
+        assert!(current_artifacts(&state, "registry", &request).is_err());
+        assert!(current_artifacts(&state, "other-registry", &request).is_err());
+    }
 }
