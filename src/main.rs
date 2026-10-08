@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Decision service with authenticated dependencies and durable, resumable recording.
+mod activation_service;
 mod decision_store;
 #[path = "../vendor/warden-transport/service_transport.rs"]
 mod service_transport;
@@ -63,12 +64,15 @@ struct Config {
     provider_token_file: PathBuf,
     journal: PathBuf,
     evaluator: Evaluator,
+    activation: Option<activation_service::Config>,
 }
 struct Runtime {
     config: Config,
     client: reqwest::Client,
     journal: Mutex<decision_store::Store>,
     serial: tokio::sync::Mutex<()>,
+    activation: Option<munarium_gate::activation::Store>,
+    activation_permits: tokio::sync::Semaphore,
 }
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "kebab-case", deny_unknown_fields)]
@@ -514,15 +518,19 @@ async fn run() -> Result<(), Failure> {
     let journal =
         decision_store::Store::open(&config.journal).map_err(|_| Failure::Configuration)?;
     let client = service_transport::client(&config.tls)?;
+    let activation = activation_service::open(&config.activation).await?;
     let listener = service_transport::Mtls::bind(&config.tls).await?;
     let runtime = Arc::new(Runtime {
         config,
         client,
         journal: Mutex::new(journal),
         serial: tokio::sync::Mutex::new(()),
+        activation,
+        activation_permits: tokio::sync::Semaphore::new(32),
     });
     let router = Router::new()
         .route("/v1/decisions", post(operate))
+        .route("/v1/actions", post(activation_service::operate))
         .layer(DefaultBodyLimit::max(262144))
         .with_state(runtime);
     axum::serve(
