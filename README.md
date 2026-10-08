@@ -379,3 +379,7 @@ defects and design findings to Issues, and suspected vulnerabilities to the priv
 [SECURITY.md](SECURITY.md) names, never a public issue. What is and is not supported:
 [SUPPORT.md](SUPPORT.md). Conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Release history,
 such as it is: [CHANGELOG.md](CHANGELOG.md).
+
+The experimental [PostgreSQL action journal](docs/action-journal.md) now provides
+atomic claim, cancellation, consumption, capacity and audit storage. Participant
+outboxes support authenticated Server delivery. Execution remains unavailable.
