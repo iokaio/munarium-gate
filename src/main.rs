@@ -3,6 +3,7 @@
 mod activation_service;
 mod decision_store;
 mod delivery_service;
+mod execution_service;
 #[path = "../vendor/warden-transport/service_transport.rs"]
 mod service_transport;
 use axum::{
@@ -53,6 +54,7 @@ impl Evaluator {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Config {
+    execution: Option<execution_service::Config>,
     delivery: Option<delivery_service::Config>,
     tls: TlsConfig,
     server_endpoint: String,

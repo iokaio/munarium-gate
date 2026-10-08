@@ -5,7 +5,7 @@
 //!
 //! The decision module implements the proposed Stage 1 candidate contracts.
 //! Activation modules implement a PostgreSQL barrier used by the authenticated service.
-//! Execution admission remains unavailable. No production path is qualified.
+//! Prepared synthetic release admission is experimental. No production path is qualified.
 //! See `docs/architecture.md` and `docs/implementation-plan.md` in this repository.
 //!
 //! The interfaces are provisional and may change before the first implementation.
@@ -17,6 +17,7 @@
 pub mod action_journal;
 pub mod activation;
 pub mod activation_wire;
+pub mod final_send;
 
 pub mod connector;
 pub mod decision;

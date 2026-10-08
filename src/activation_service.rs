@@ -248,6 +248,22 @@ pub(super) async fn operate(
     ConnectInfo(peer): ConnectInfo<Peer>,
     body: Bytes,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    if let Ok(v) = serde_json::from_slice::<Value>(&body)
+        && !matches!(
+            v["action"]["operation"].as_str(),
+            Some(
+                "flush"
+                    | "pause"
+                    | "pause-lookup"
+                    | "apply-activation"
+                    | "activation-lookup"
+                    | "activation-head"
+                    | "resume"
+            )
+        )
+    {
+        return execution_service::operate(State(runtime), ConnectInfo(peer), body).await;
+    }
     admitted(&runtime, &peer, &body)
         .await
         .map(Json)

@@ -10,8 +10,12 @@ never sees. Gate is the largest of the nine new components and the platform's ma
 > **Status: Stage 1 decision service implemented.** The authenticated service/client
 > profile is implemented and covered by component and separate-process tests.
 > See the [service profile](docs/service-profile.md). Candidates remain inactive;
-> no execution endpoint is mounted. Human acceptance and production qualification
+> the Stage 1 API remains decision-only. Human acceptance and production qualification
 > remain pending.
+
+An opt-in [prepared synthetic release adapter](docs/action-journal.md) connects
+Council approval, Warden grants/custody, final-send admission and target reconciliation.
+General dynamic evaluation and production effects are not qualified by this adapter.
 
 Gate is one of nine components built around the existing Munarium foundation, Munarium Server and
 Munarium Matrix. Their shared architecture, normative contracts, decision records, roadmap and

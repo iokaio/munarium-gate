@@ -561,3 +561,175 @@ async fn delivery_retries_exact_event_and_rejects_wrong_custody() {
     );
     assert!(!db.pending(&a.scope).await.unwrap().is_empty());
 }
+
+#[tokio::test]
+#[ignore = "requires isolated GATE_TEST_DATABASE_URL; CI selects explicitly"]
+async fn final_send_exact_custody_races_lost_reply_cancellation_and_generation() {
+    use munarium_gate::final_send::Custody;
+    let url = std::env::var("GATE_TEST_DATABASE_URL").unwrap();
+    let db = Store::open(&url).await.unwrap();
+    let t = unique_transition();
+    let auth = authority(&t);
+    let scope = &auth.scope;
+    db.initialize(scope, 1, t["prior_artifact_set_digest"].as_str().unwrap())
+        .await
+        .unwrap();
+    db.action_enroll(scope, "final-send", 1).await.unwrap();
+    db.pause(&auth, &t).await.unwrap();
+    db.apply(&auth, &t).await.unwrap();
+    db.resume(&auth, &completion(&t), &evidence(&t))
+        .await
+        .unwrap();
+    db.execution_generation(scope, 1).await.unwrap();
+    let a = admission(scope, "live-final", 1000);
+    let claim = db.action_claim(&a).await.unwrap();
+    let consumed = db
+        .action_consume(&a, &consumption(&claim, 1000, "connector"))
+        .await
+        .unwrap();
+    let mut custody = Custody {
+        grant: consumed["consumption"]["payload"]["grant"].clone(),
+        invocation: json!({"scope":scope,"kind":"invocation","id":"invocation"}),
+        worker: "connector".into(),
+        fence: 1,
+        expires_at: 1005,
+        recovery: 1,
+    };
+    assert!(
+        db.action_final(&a, &custody).await.is_err(),
+        "missing predispatch custody refuses"
+    );
+    while let Some(e) = db.action_pending(scope).await.unwrap() {
+        db.action_ack(scope, &e, &ack(&e)).await.unwrap();
+    }
+    custody.fence = 2;
+    assert!(db.action_final(&a, &custody).await.is_err());
+    custody.fence = 1;
+    custody.expires_at = 1002;
+    assert!(db.action_final(&a, &custody).await.is_err());
+    custody.expires_at = 1005;
+    custody.recovery = 2;
+    assert!(db.action_final(&a, &custody).await.is_err());
+    custody.recovery = 1;
+    let (first, second) =
+        tokio::join!(db.action_final(&a, &custody), db.action_final(&a, &custody));
+    let results = [first.unwrap(), second.unwrap()];
+    assert_eq!(
+        results
+            .iter()
+            .filter(|r| r["send_permitted"] == true)
+            .count(),
+        1
+    );
+    let event = &results
+        .iter()
+        .find(|r| r["send_permitted"] == true)
+        .unwrap()["send_intent"];
+    wire::shape(event, "accountability-event").unwrap();
+    drop(db);
+    let db = Store::open(&url).await.unwrap();
+    assert_eq!(
+        db.action_final(&a, &custody).await.unwrap()["send_permitted"],
+        false,
+        "lost reply never replaced after reopen"
+    );
+    assert_eq!(
+        db.action_dispatch(scope, "live-final").await.unwrap()["send_permitted"],
+        false
+    );
+    let cancel = db
+        .action_cancel(
+            scope,
+            "live-final",
+            "attempt-a",
+            &a.approval["approval"],
+            "withdraw-late",
+        )
+        .await
+        .unwrap();
+    assert_eq!(cancel["status"], "too-late");
+    let outcome = db
+        .action_unresolved(scope, "live-final", 1001)
+        .await
+        .unwrap();
+    wire::shape(&outcome, "accountability-event").unwrap();
+    assert_eq!(
+        db.action_unresolved(scope, "live-final", 1002)
+            .await
+            .unwrap(),
+        outcome
+    );
+    assert!(
+        db.execution_generation(scope, 2).await.is_err(),
+        "new external generation cannot reopen old storage"
+    );
+    let a = admission(scope, "cancel-wins", 1000);
+    let claim = db.action_claim(&a).await.unwrap();
+    let consumed = db
+        .action_consume(&a, &consumption(&claim, 1000, "connector"))
+        .await
+        .unwrap();
+    while let Some(e) = db.action_pending(scope).await.unwrap() {
+        db.action_ack(scope, &e, &ack(&e)).await.unwrap();
+    }
+    custody.grant = consumed["consumption"]["payload"]["grant"].clone();
+    db.action_cancel(
+        scope,
+        "cancel-wins",
+        "attempt-a",
+        &a.approval["approval"],
+        "withdraw-early",
+    )
+    .await
+    .unwrap();
+    assert!(db.action_final(&a, &custody).await.is_err());
+    assert!(db.action_dispatch(scope, "cancel-wins").await.unwrap()["send_intent"].is_null());
+    let original = admission(scope, "live-final", 1000);
+    let request = &original.request;
+    let mut receipt = json!({"operation":request["operation"],"request_digest":wire::digest("action-request",request).unwrap(),
+        "target":request["intent"]["target"],"effect_key":"live-final","recovery_epoch":1,"worker_fence":1,
+        "version":2,"content_digest":request["intent"]["parameters"]["artifact_digest"],"status":"completed"});
+    receipt["version"] = json!(3);
+    assert!(
+        db.action_reconcile(scope, "live-final", &receipt, 1001)
+            .await
+            .is_err()
+    );
+    receipt["version"] = json!(2);
+    let reconciled = db
+        .action_reconcile(scope, "live-final", &receipt, 1001)
+        .await
+        .unwrap();
+    assert_eq!(
+        db.action_reconcile(scope, "live-final", &receipt, 1002)
+            .await
+            .unwrap(),
+        reconciled
+    );
+    assert_eq!(
+        db.action_dispatch(scope, "live-final").await.unwrap()["outcome"],
+        outcome,
+        "original uncertainty remains append-only"
+    );
+    let same_hour = admission(scope, "same-hour", 1000);
+    let claim = db.action_claim(&same_hour).await.unwrap();
+    assert!(
+        db.action_consume(&same_hour, &consumption(&claim, 1000, "connector"))
+            .await
+            .is_err(),
+        "completed admission stays charged in its original hour"
+    );
+    let next_hour = admission(scope, "next-hour", 4600);
+    let claim = db.action_claim(&next_hour).await.unwrap();
+    db.action_consume(&next_hour, &consumption(&claim, 4600, "connector"))
+        .await
+        .unwrap();
+    let over = admission(scope, "still-uncertain", 4600);
+    let claim = db.action_claim(&over).await.unwrap();
+    assert!(
+        db.action_consume(&over, &consumption(&claim, 4600, "connector"))
+            .await
+            .is_err(),
+        "unsettled cancellation still carries into the next hour"
+    );
+}
