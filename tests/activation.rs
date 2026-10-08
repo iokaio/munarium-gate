@@ -92,6 +92,296 @@ fn unique_transition() -> Value {
     t["ratification"]["scope"] = scope;
     t
 }
+
+fn ack(event: &Value) -> Value {
+    let mut a = fixture()["records"]["ack"].clone();
+    a["scope"] = event["scope"].clone();
+    a["ledger"]["scope"] = event["scope"].clone();
+    a["event_id"] = event["event_id"].clone();
+    a["payload_digest"] = event["payload_digest"].clone();
+    a["event_digest"] = json!(wire::digest("accountability-event", event).unwrap());
+    a
+}
+fn rescope(v: &mut Value, scope: &Value) {
+    match v {
+        Value::Object(m) => {
+            if m.contains_key("scope") {
+                m.insert("scope".into(), scope.clone());
+            }
+            for (k, c) in m {
+                if k != "scope" {
+                    rescope(c, scope);
+                }
+            }
+        }
+        Value::Array(a) => {
+            for c in a {
+                rescope(c, scope)
+            }
+        }
+        _ => {}
+    }
+}
+fn admission(scope: &Value, operation: &str, now: u64) -> munarium_gate::action_journal::Admission {
+    let mut v = fixture()["records"].clone();
+    rescope(&mut v, scope);
+    let r = &mut v["request"];
+    r["operation"]["id"] = json!(operation);
+    r["context"]["valid_from"] = json!(now - 10);
+    r["context"]["expires_at"] = json!(now + 300);
+    r["intent_digest"] = json!(wire::digest("intent", &r["intent"]).unwrap());
+    r["context_digest"] = json!(wire::digest("context", &r["context"]).unwrap());
+    let r = r.clone();
+    let d = &mut v["decision"];
+    for k in ["operation", "attempt", "context_digest"] {
+        d[k] = r[k].clone();
+    }
+    d["request_digest"] = json!(wire::digest("action-request", &r).unwrap());
+    let d = d.clone();
+    let p = &mut v["approval"];
+    for k in ["operation", "attempt", "context_digest", "request_digest"] {
+        p[k] = d[k].clone();
+    }
+    p["approval"]["id"] = json!(format!("approval-{operation}"));
+    p["decision_digest"] = json!(wire::digest("action-decision", &d).unwrap());
+    p["issued_at"] = json!(now - 10);
+    p["expires_at"] = json!(now + 290);
+    let p = p.clone();
+    let e = &mut v["approval-recorded"];
+    for k in ["operation", "attempt", "request_digest", "context_digest"] {
+        e["payload"][k] = p[k].clone();
+    }
+    e["payload"]["approval"] = p["approval"].clone();
+    e["payload"]["approval_digest"] = json!(wire::digest("action-approval", &p).unwrap());
+    e["payload_digest"] = json!(wire::digest("event-payload", &e["payload"]).unwrap());
+    munarium_gate::action_journal::Admission {
+        request: r,
+        decision: d,
+        approval: p,
+        approval_event: e.clone(),
+        approval_ack: ack(e),
+        now,
+    }
+}
+fn consumption(
+    claim: &Value,
+    now: u64,
+    worker: &str,
+) -> munarium_gate::action_journal::Consumption {
+    let mut e = fixture()["records"]["grant-issued"].clone();
+    rescope(&mut e, &claim["scope"]);
+    for k in [
+        "operation",
+        "attempt",
+        "request_digest",
+        "context_digest",
+        "activation_epoch",
+        "recovery_epoch",
+        "claim",
+    ] {
+        e["payload"][k] = claim["payload"][k].clone();
+    }
+    e["payload"]["grant"]["id"] = json!(format!(
+        "grant-{}",
+        claim["payload"]["operation"]["id"].as_str().unwrap()
+    ));
+    e["payload"]["expires_at"] = json!(now + 20);
+    e["payload_digest"] = json!(wire::digest("event-payload", &e["payload"]).unwrap());
+    munarium_gate::action_journal::Consumption {
+        grant_ack: ack(&e),
+        grant_event: e,
+        worker: worker.into(),
+        limits: Default::default(),
+        now,
+    }
+}
+#[tokio::test]
+#[ignore = "requires isolated GATE_TEST_DATABASE_URL; CI selects explicitly"]
+async fn postgres_action_races_cancellation_pause_and_unresolved_capacity() {
+    let url = std::env::var("GATE_TEST_DATABASE_URL").unwrap();
+    let db = Store::open(&url).await.unwrap();
+    let t = unique_transition();
+    let auth = authority(&t);
+    let scope = &auth.scope;
+    db.initialize(scope, 1, t["prior_artifact_set_digest"].as_str().unwrap())
+        .await
+        .unwrap();
+    db.action_enroll(scope, "gate-actions", 1).await.unwrap();
+    let a = admission(scope, "one", 1000);
+    assert!(db.action_claim(&a).await.is_err());
+    db.pause(&auth, &t).await.unwrap();
+    db.apply(&auth, &t).await.unwrap();
+    db.resume(&auth, &completion(&t), &evidence(&t))
+        .await
+        .unwrap();
+    let (x, y) = tokio::join!(db.action_claim(&a), db.action_claim(&a));
+    let claim = x.unwrap();
+    assert_eq!(claim, y.unwrap());
+    let c = consumption(&claim, 1000, "worker-one");
+    let other = consumption(&claim, 1000, "worker-two");
+    let (x, y) = tokio::join!(db.action_consume(&a, &c), db.action_consume(&a, &other));
+    assert_eq!(x.is_ok() as u8 + y.is_ok() as u8, 1);
+    let (winner, result) = if let Ok(r) = x {
+        (&c, r)
+    } else {
+        (&other, y.unwrap())
+    };
+    assert_eq!(db.action_consume(&a, winner).await.unwrap(), result);
+    assert_eq!(result["execution_enabled"], false);
+    let cancelled = admission(scope, "cancelled", 1000);
+    db.action_cancel(
+        scope,
+        "cancelled",
+        "attempt-a",
+        &cancelled.approval["approval"],
+        "withdraw-a",
+    )
+    .await
+    .unwrap();
+    assert!(db.action_claim(&cancelled).await.is_err());
+    let b = admission(scope, "two", 1000);
+    let claim_b = db.action_claim(&b).await.unwrap();
+    let mut c_b = consumption(&claim_b, 1000, "worker-b");
+    c_b.limits.insert("root-cap".into(), 1);
+    db.action_consume(&b, &c_b).await.unwrap();
+    drop(db);
+    let db = Store::open(&url).await.unwrap();
+    assert_eq!(
+        db.action_lookup(scope, "one").await.unwrap()["consumption"],
+        result
+    );
+    let later = admission(scope, "three", 4600);
+    let claim_later = db.action_claim(&later).await.unwrap();
+    let c_later = consumption(&claim_later, 4600, "worker-later");
+    assert!(db.action_consume(&later, &c_later).await.is_err());
+    assert!(db.action_lookup(scope, "three").await.unwrap()["consumption"].is_null());
+    let mut altered = admission(scope, "one", 1000);
+    altered.request["attempt"]["id"] = json!("new-attempt");
+    assert!(db.action_claim(&altered).await.is_err());
+    assert!(db.action_enroll(scope, "changed-stream", 1).await.is_err());
+    let foreign = json!({"domain":"fixture-domain","tenant":"foreign","deployment":"fixture-deployment","cell":"other"});
+    assert!(db.action_lookup(&foreign, "one").await.is_err());
+}
+
+#[tokio::test]
+#[ignore = "requires isolated GATE_TEST_DATABASE_URL; CI selects explicitly"]
+async fn postgres_capacity_race_rolls_back_all_buckets_and_orders_audit() {
+    let url = std::env::var("GATE_TEST_DATABASE_URL").unwrap();
+    let db = Store::open(&url).await.unwrap();
+    let t = unique_transition();
+    let auth = authority(&t);
+    let scope = &auth.scope;
+    db.initialize(scope, 1, t["prior_artifact_set_digest"].as_str().unwrap())
+        .await
+        .unwrap();
+    db.action_enroll(scope, "action-races", 1).await.unwrap();
+    db.pause(&auth, &t).await.unwrap();
+    db.apply(&auth, &t).await.unwrap();
+    db.resume(&auth, &completion(&t), &evidence(&t))
+        .await
+        .unwrap();
+    let a = admission(scope, "a", 1000);
+    let b = admission(scope, "b", 1000);
+    let c = admission(scope, "c", 1000);
+    let ca = db.action_claim(&a).await.unwrap();
+    let cb = db.action_claim(&b).await.unwrap();
+    let cc = db.action_claim(&c).await.unwrap();
+    let ga = consumption(&ca, 1000, "a");
+    let gb = consumption(&cb, 1000, "b");
+    let mut gc = consumption(&cc, 1000, "c");
+    gc.limits.insert("extra".into(), 1);
+    let (ra, rb, rc) = tokio::join!(
+        db.action_consume(&a, &ga),
+        db.action_consume(&b, &gb),
+        db.action_consume(&c, &gc)
+    );
+    assert_eq!(
+        [ra.is_ok(), rb.is_ok(), rc.is_ok()]
+            .into_iter()
+            .filter(|b| *b)
+            .count(),
+        2
+    );
+    let pending = db.action_pending(scope).await.unwrap().unwrap();
+    assert_eq!(pending, ca);
+    assert!(db.action_ack(scope, &cb, &ack(&cb)).await.is_err());
+    let mut wrong = ack(&ca);
+    wrong["payload_digest"] = json!(format!("sha256:{}", "0".repeat(64)));
+    assert!(db.action_ack(scope, &ca, &wrong).await.is_err());
+    db.action_ack(scope, &ca, &ack(&ca)).await.unwrap();
+    db.action_ack(scope, &ca, &ack(&ca)).await.unwrap();
+    assert_eq!(db.action_pending(scope).await.unwrap(), Some(cb));
+    // Failed consumption must not retain a grant, policy bucket or partial outbox.
+    let failed = if ra.is_err() {
+        "a"
+    } else if rb.is_err() {
+        "b"
+    } else {
+        "c"
+    };
+    assert!(db.action_lookup(scope, failed).await.unwrap()["consumption"].is_null());
+    let rollback = admission(scope, "rollback", 1000);
+    let rollback_claim = db.action_claim(&rollback).await.unwrap();
+    let mut rollback_grant = consumption(&rollback_claim, 1000, "rollback-worker");
+    rollback_grant.limits.insert("rollback-probe".into(), 1);
+    assert!(db.action_consume(&rollback, &rollback_grant).await.is_err());
+    let pool = sqlx_postgres::PgPool::connect(&url).await.unwrap();
+    use sqlx_core::row::Row;
+    for table in ["gate_action_reservations", "gate_action_grants"] {
+        let sql = format!("SELECT COUNT(*) AS n FROM {table} WHERE scope=$1 AND operation=$2");
+        let row = sqlx_core::query::query(&sql)
+            .bind(wire::raw(scope).unwrap())
+            .bind("rollback")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            row.get::<i64, _>("n"),
+            0,
+            "failed transaction must not retain partial writes"
+        );
+    }
+    let row =
+        sqlx_core::query::query("SELECT COUNT(*) AS n FROM gate_action_outbox WHERE scope=$1")
+            .bind(wire::raw(scope).unwrap())
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        row.get::<i64, _>("n"),
+        8,
+        "four claims and two complete consumption pairs only"
+    );
+    // An extra exhausted bucket is checked in the same transaction as target capacity.
+    let mut next = admission(scope, "paused", 1000);
+    next.request["context"]["activation"]["revision"] = json!(99);
+    assert!(db.action_claim(&next).await.is_err());
+    let pending = admission(scope, "before-pause", 1000);
+    let claim = db.action_claim(&pending).await.unwrap();
+    let mut transition = t.clone();
+    transition["transition"]["id"] = json!("next-transition");
+    transition["prior_epoch"] = json!(2);
+    transition["successor_epoch"] = json!(3);
+    transition["prior_artifact_set_digest"] = t["artifact_set_digest"].clone();
+    db.pause(&authority(&transition), &transition)
+        .await
+        .unwrap();
+    assert!(
+        db.action_consume(&pending, &consumption(&claim, 1000, "paused-worker"))
+            .await
+            .is_err()
+    );
+    db.action_cancel(
+        scope,
+        "before-pause",
+        "attempt-a",
+        &pending.approval["approval"],
+        "withdraw-before-send",
+    )
+    .await
+    .unwrap();
+    assert!(db.action_lookup(scope, "before-pause").await.unwrap()["consumption"].is_null());
+}
 #[tokio::test]
 #[ignore = "requires isolated GATE_TEST_DATABASE_URL; CI selects explicitly"]
 async fn postgres_barrier_restart_refusals_and_exact_resume() {
@@ -199,4 +489,75 @@ async fn postgres_competing_transitions_have_one_winner() {
     let (x, y) = tokio::join!(db.pause(&a, &t), other.pause(&b, &rival));
     assert_eq!(usize::from(x.is_ok()) + usize::from(y.is_ok()), 1);
     assert_eq!(db.pending(&a.scope).await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+#[ignore = "requires isolated GATE_TEST_DATABASE_URL; CI selects explicitly"]
+async fn delivery_retries_exact_event_and_rejects_wrong_custody() {
+    let url = std::env::var("GATE_TEST_DATABASE_URL").unwrap();
+    let db = Store::open(&url).await.unwrap();
+    let t = unique_transition();
+    let a = authority(&t);
+    db.initialize(
+        &a.scope,
+        1,
+        t["prior_artifact_set_digest"].as_str().unwrap(),
+    )
+    .await
+    .unwrap();
+    db.pause(&a, &t).await.unwrap();
+    db.apply(&a, &t).await.unwrap();
+    let registration = json!({"stream":"activation-delivery","generation":1});
+    let event = db
+        .delivery_next(&a.scope, &registration, 1001)
+        .await
+        .unwrap()
+        .unwrap();
+    drop(db);
+    let db = Store::open(&url).await.unwrap();
+    assert_eq!(
+        db.delivery_next(&a.scope, &registration, 1099)
+            .await
+            .unwrap(),
+        Some(event.clone())
+    );
+    assert!(
+        db.delivery_next(
+            &a.scope,
+            &json!({"stream":"activation-delivery","generation":2}),
+            1099
+        )
+        .await
+        .is_err()
+    );
+    let mut ack = fixture()["records"]["ack"].clone();
+    ack["scope"] = a.scope.clone();
+    ack["ledger"]["scope"] = a.scope.clone();
+    ack["event_id"] = event["event_id"].clone();
+    ack["payload_digest"] = event["payload_digest"].clone();
+    ack["event_digest"] = json!(wire::digest("accountability-event", &event).unwrap());
+    let mut wrong = ack.clone();
+    wrong["position"] = json!(0);
+    assert!(db.delivery_ack(&a.scope, &event, &wrong).await.is_err());
+    wrong = ack.clone();
+    wrong["event_id"] = json!("wrong");
+    assert!(db.delivery_ack(&a.scope, &event, &wrong).await.is_err());
+    wrong = ack.clone();
+    wrong["ledger"]["scope"]["tenant"] = json!("foreign");
+    assert!(db.delivery_ack(&a.scope, &event, &wrong).await.is_err());
+    assert_eq!(
+        db.delivery_next(&a.scope, &registration, 1100)
+            .await
+            .unwrap(),
+        Some(event.clone())
+    );
+    db.delivery_ack(&a.scope, &event, &ack).await.unwrap();
+    db.delivery_ack(&a.scope, &event, &ack).await.unwrap();
+    assert!(
+        db.delivery_next(&a.scope, &registration, 1101)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(!db.pending(&a.scope).await.unwrap().is_empty());
 }

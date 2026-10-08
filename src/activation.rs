@@ -2,7 +2,7 @@
 //! Gate-owned PostgreSQL activation barrier. No action or target effect is admitted here.
 use crate::activation_wire::{self as wire, Authority, Error, Result};
 use serde_json::{Value, json};
-mod sqlx {
+pub(crate) mod sqlx {
     pub use sqlx_core::{
         Error, query::query, raw_sql::raw_sql, row::Row, transaction::Transaction,
     };
@@ -13,7 +13,8 @@ mod sqlx {
 }
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 use std::time::Duration;
-fn unavailable(_: sqlx::Error) -> Error {
+mod delivery;
+pub(crate) fn unavailable(_: sqlx::Error) -> Error {
     Error::Unavailable
 }
 /// Independently authenticated current participant evidence, not a request DTO.
@@ -26,7 +27,7 @@ pub struct Evidence {
 /// Cloneable pool; every mutation serializes on the qualified cell row.
 #[derive(Clone)]
 pub struct Store {
-    pool: PgPool,
+    pub(crate) pool: PgPool,
 }
 impl Store {
     /// Connect to an operator-owned database and apply additive owner tables.
@@ -43,6 +44,14 @@ impl Store {
             .await
             .map_err(unavailable)?;
         sqlx::raw_sql(include_str!("../migrations/0001_activation.sql"))
+            .execute(&mut *tx)
+            .await
+            .map_err(unavailable)?;
+        sqlx::raw_sql(include_str!("../migrations/0002_activation_delivery.sql"))
+            .execute(&mut *tx)
+            .await
+            .map_err(unavailable)?;
+        sqlx::raw_sql(include_str!("../migrations/0003_action_journal.sql"))
             .execute(&mut *tx)
             .await
             .map_err(unavailable)?;
@@ -69,7 +78,7 @@ impl Store {
         }
         Ok(())
     }
-    async fn locked(
+    pub(crate) async fn locked(
         &self,
         key: &str,
     ) -> Result<(sqlx::Transaction<'_, sqlx::Postgres>, sqlx::postgres::PgRow)> {

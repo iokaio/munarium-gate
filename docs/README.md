@@ -1,5 +1,8 @@
 # Munarium Gate development documentation
 
+[PostgreSQL action journal](action-journal.md) describes experimental durable
+claims, cancellation, consumption, capacity and the remaining execution boundary.
+
 Start with the [repository README](../README.md) for scope and capability status.
 The [public platform plan, revision 4](https://github.com/iokaio/munarium-platform/blob/main/docs/platform-plan.md) is the design baseline;
 section 8 covers Gate. A plan or a compiling interface does not establish a capability.

@@ -50,9 +50,8 @@ Mutations independently query Council for current exact ratification and enforce
 the two-second clock bound. Resume additionally retrieves Registry, Server and
 Warden receipts and heads directly over mTLS. Missing, changed, duplicated or stale
 evidence refuses. A governing revision change during lookups also refuses.
-Server's participant route is still a dependency awaiting implementation;
-its absence keeps this barrier closed. A synthetic test response is not Server
-implementation evidence.
+Server's participant route is implemented in Server PR #77. Its absence or a
+mismatched receipt still keeps this barrier closed.
 
 ## Persistence and recovery
 
@@ -102,3 +101,41 @@ and a disposable database. Owner: the maintainer's local test session; availabil
 cached image and Docker verified before launch; no paid resources; expiry: task
 teardown. Native test keys and SQLite files expire with each temporary directory.
 Full Linux service isolation, REF-18 and snapshot restoration remain unqualified.
+
+## Participant audit delivery
+
+The coordinator may POST `flush` to the existing activation route (Gate uses
+`/v1/actions`). Each call delivers at most one pending applied receipt. A reader
+cannot flush. The response reports `delivered:1` with the exact Server
+acknowledgement, or `delivered:0` when no intent remains pending. Retry until zero;
+dependency failure or an invalid acknowledgement keeps the oldest event pending.
+Expiry of the transition does not invalidate historical delivery authority.
+Current Server identity/stream admission still applies to every append.
+
+Add the optional top-level service configuration `delivery` with `server_service`,
+`warden_endpoint` (an HTTPS origin), `provider_id` and absolute
+`provider_token_file`. The file is operator-supplied and never logged. Warden's
+provider enrollment must bind the actual service peer to the Server audience,
+`propose` scope and `action-records:<tenant>` resource. Server must enroll this
+peer for recording and admit its current identity in `identity:<Server service>`.
+No caller assertion or forwarding header supplies the recorder identity.
+
+The current `action-records:<Server service>` binding must register exactly one
+stream for this service/producer with only `activation-applied` in `kinds`.
+Source generation and stream are pinned by the first materialized event. A changed
+registration refuses rather than rewriting pending history or guessing a new
+sequence. The stream must be dedicated to this owner database.
+
+Operational receipts and intent remain atomic. Additive delivery tables retain
+canonical event bytes before sending, then the exact acknowledgement after closed
+schema, event/payload hash, qualified scope and ledger-position validation. The
+event timestamp is the first durable delivery observation. A lost response retries
+the same event, source sequence and timestamp; concurrent flushes are duplicates,
+not new facts. Receipt intent remains retained after acknowledgement. Server must
+already hold the Council transition, normally archived by Server's participant
+apply. Gate pause/resume history has no invented candidate event type.
+
+This is audit delivery, not execution admission or snapshot reconciliation. Missing
+source history and changed generations fail closed. Component restart/negative
+acknowledgement tests and Harness's real-service delivery test exercise this path.
+No production trust, target effect or recovery qualification is claimed.

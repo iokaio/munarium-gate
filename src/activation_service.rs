@@ -24,6 +24,7 @@ struct Policy {
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "kebab-case", deny_unknown_fields)]
 enum Operation {
+    Flush,
     Pause { transition: String },
     PauseLookup { transition_id: String },
     ApplyActivation { transition: String },
@@ -117,6 +118,32 @@ async fn admitted(runtime: &Runtime, peer: &Peer, body: &[u8]) -> Result<Value, 
     }
     if peer.service != p.coordinator {
         return Err(ActivationError::Refused);
+    }
+    if matches!(r.action, Operation::Flush) {
+        let cfg = runtime
+            .config
+            .delivery
+            .as_ref()
+            .ok_or(ActivationError::Unavailable)?;
+        let registration = munarium_gate::activation_delivery::registration(
+            &state,
+            &p.scope,
+            &cfg.server_service,
+            &runtime.config.service,
+            "gate",
+        )?;
+        let now = service_transport::now()
+            .map_err(|_| ActivationError::Unavailable)?
+            .try_into()
+            .map_err(|_| ActivationError::Unavailable)?;
+        let Some(event) = store.delivery_next(&p.scope, &registration, now).await? else {
+            return Ok(json!({"delivered":0}));
+        };
+        let ack = delivery_service::deliver(runtime, &r.tenant, &event)
+            .await
+            .map_err(|_| ActivationError::Unavailable)?;
+        store.delivery_ack(&p.scope, &event, &ack).await?;
+        return Ok(json!({"delivered":1,"acknowledgement":ack}));
     }
     let t = match &r.action {
         Operation::Pause { transition } | Operation::ApplyActivation { transition } => {

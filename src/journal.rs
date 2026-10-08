@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Durably establish a request-bound execution claim.
 //!
-//! Atomic acquisition, grant consumption, fencing, and recovery require a jointly reviewed storage protocol; this port provides none of those guarantees yet.
+//! The PostgreSQL implementation is in `crate::action_journal`; this legacy port remains provisional.
 //!
 //! Proposed local interface only. No implementation or wire format is provided.
 
