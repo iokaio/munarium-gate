@@ -40,7 +40,7 @@ pub struct Consumption {
 fn id(v: &Value) -> Result<&str> {
     v.as_str().ok_or(Error::Invalid)
 }
-fn current(a: &Admission) -> Result<()> {
+pub(crate) fn current(a: &Admission) -> Result<()> {
     let r = &a.request;
     let d = &a.decision;
     let p = &a.approval;
@@ -104,10 +104,10 @@ fn current(a: &Admission) -> Result<()> {
     }
     Ok(())
 }
-fn binding(a: &Admission) -> Value {
+pub(crate) fn binding(a: &Admission) -> Value {
     json!({"request":a.request,"decision":a.decision,"approval":a.approval,"approval_event":a.approval_event,"approval_ack":a.approval_ack})
 }
-fn artifact_set(request: &Value) -> Result<String> {
+pub(crate) fn artifact_set(request: &Value) -> Result<String> {
     wire::digest(
         "artifact-set",
         &json!({"artifacts":[
@@ -116,7 +116,11 @@ fn artifact_set(request: &Value) -> Result<String> {
         ]}),
     )
 }
-async fn cancelled(
+/// Compute the ordered manifest/policy set used by the prepared execution adapter.
+pub fn artifact_set_for_service(request: &Value) -> Result<String> {
+    artifact_set(request)
+}
+pub(crate) async fn cancelled(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     scope: &str,
     r: &Value,
@@ -126,7 +130,7 @@ async fn cancelled(
         .bind(scope).bind(id(&r["operation"]["id"])?).bind(id(&r["attempt"]["id"])?).bind(wire::raw(approval)?)
         .fetch_optional(&mut **tx).await.map_err(unavailable)?.is_some())
 }
-async fn append(
+pub(crate) async fn append(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     scope: &Value,
     payload: Value,
@@ -288,7 +292,7 @@ impl Store {
         tx.commit().await.map_err(unavailable)?;
         Ok(claim)
     }
-    /// Commit a cancellation even before a claim exists. No final-send route exists in this packet.
+    /// Commit a cancellation even before a claim exists; serialize against final admission.
     pub async fn action_cancel(
         &self,
         scope: &Value,
@@ -308,7 +312,15 @@ impl Store {
         }
         let key = wire::raw(scope)?;
         let (mut tx, _) = self.locked(&key).await?;
-        let receipt = json!({"scope":scope,"operation_id":operation,"attempt_id":attempt,"approval":approval,"withdrawal_id":withdrawal,"status":"cancelled","execution_enabled":false});
+        let sent =
+            sqlx::query("SELECT 1 FROM gate_action_dispatch WHERE scope=$1 AND operation=$2")
+                .bind(&key)
+                .bind(operation)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(unavailable)?
+                .is_some();
+        let receipt = json!({"scope":scope,"operation_id":operation,"attempt_id":attempt,"approval":approval,"withdrawal_id":withdrawal,"status":if sent {"too-late"} else {"cancelled"},"execution_enabled":false});
         let raw = wire::raw(&receipt)?;
         sqlx::query("INSERT INTO gate_action_cancellations(scope,operation,attempt,approval,withdrawal,receipt) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING")
             .bind(&key).bind(operation).bind(attempt).bind(wire::raw(approval)?).bind(withdrawal).bind(&raw).execute(&mut *tx).await.map_err(unavailable)?;

@@ -55,6 +55,14 @@ impl Store {
             .execute(&mut *tx)
             .await
             .map_err(unavailable)?;
+        sqlx::raw_sql(include_str!("../migrations/0004_final_send.sql"))
+            .execute(&mut *tx)
+            .await
+            .map_err(unavailable)?;
+        sqlx::raw_sql(include_str!("../migrations/0005_reconciliation.sql"))
+            .execute(&mut *tx)
+            .await
+            .map_err(unavailable)?;
         tx.commit().await.map_err(unavailable)?;
         Ok(Self { pool })
     }
