@@ -14,6 +14,9 @@ fixture for decision-only bindings. Registry submissions never activate themselv
 
 ## Evaluator profile
 
+The separate [Linux evaluator](linux-evaluator.md) adds a cgroup v2 native worker.
+Its controls and deployment requirements are independent of this Windows profile.
+
 The implemented native profile is OPA 1.21.1 on Windows amd64, SHA-256
 `25406f7c6e147d687fd7fd546f835bafa160a6242c605ee94a23ba6cd7bccdcd`.
 Download `opa_windows_amd64.exe` from the official
