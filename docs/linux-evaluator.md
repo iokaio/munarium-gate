@@ -14,6 +14,10 @@ An administrator delegates a dedicated cgroup v2 subtree with `cpu`, `memory` an
 `pids` enabled. Set `MUNARIUM_OPA_CGROUP_ROOT` in the trusted Gate environment to
 that directory under `/sys/fs/cgroup`. Gate does not alter global controllers or
 create delegation. An absent, simulated, unsupported or unwritable boundary refuses.
+The supervisor must already reside in a child of that delegated subtree, so moving
+its children requires only delegated permissions. An administrator establishes
+that service placement; the evaluator does not move itself from an unrelated host
+cgroup. CI places the supervisor first and runs evaluation as the ordinary runner.
 
 Each invocation creates a fresh kernel cgroup and places the Python child inside
 before executing native OPA. Limits are aggregate 64 MiB resident memory, zero

@@ -99,16 +99,19 @@ jobs:
           root="/sys/fs/cgroup/munarium-gate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           sudo mkdir "$root"
           echo '+cpu +memory +pids' | sudo tee "$root/cgroup.subtree_control" >/dev/null
+          sudo mkdir "$root/supervisor"
           sudo chown "$(id -u):$(id -g)" "$root" "$root/cgroup.procs" "$root/cgroup.subtree_control" "$root/cgroup.threads"
           echo "MUNARIUM_OPA_CGROUP_ROOT=$root" >> "$GITHUB_ENV"
       - name: Portable refusal and native resource controls
         run: |
           python3 scripts/test_linux_worker.py -v
-          python3 scripts/check_opa_linux.py --opa target/opa-linux
+          # The administrator places the trusted supervisor inside its delegated
+          # subtree, then drops back to the runner user before any evaluation.
+          sudo --preserve-env=MUNARIUM_OPA_CGROUP_ROOT,PATH sh -c 'echo $$ > "$1/supervisor/cgroup.procs"; owner="$2"; shift 2; exec runuser -u "$owner" -- "$@"' sh "$MUNARIUM_OPA_CGROUP_ROOT" "$(id -un)" python3 scripts/check_opa_linux.py --opa target/opa-linux
       - name: Native Rust adapter
         env:
           OPA_LINUX_EXECUTABLE: ${{ github.workspace }}/target/opa-linux
-        run: cargo +1.98.1 test --offline --locked --test native_opa -- --ignored
+        run: sudo --preserve-env=MUNARIUM_OPA_CGROUP_ROOT,OPA_LINUX_EXECUTABLE,PATH sh -c 'echo $$ > "$1/supervisor/cgroup.procs"; owner="$2"; shift 2; exec runuser -u "$owner" -- "$@"' sh "$MUNARIUM_OPA_CGROUP_ROOT" "$(id -un)" cargo +1.98.1 test --offline --locked --test native_opa -- --ignored
       - name: Remove only the owned evaluator cgroup
         if: always()
         run: |
