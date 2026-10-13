@@ -47,7 +47,7 @@ fn authority() -> Authority {
     );
     let manifest = json!({"schema_version":2,"profile":"registry-manifest-v2","tenant":template["operation"]["scope"]["tenant"],
         "operation_id":"release.publish_approved_artifact","environment":"disposable","target_id":template["intent"]["target"]["id"],
-        "credential_audience":template["intent"]["target"]["id"],"base_consequence":"C2","modifiers":[],
+        "credential_audience":template["intent"]["target"]["id"],"base_consequence":"C2","effect":"external-effect","idempotency":"operation-key","compensation":"none","modifiers":[],
         "required_obligations":["distinct-approval"],"parameter_schema_digest":schema_digest});
     let policy = json!({"profile":"stage2-release-evaluation-v1","engine":"opa","engine_version":"1.21.1",
         "engine_digest":evaluator().digest(),"worker_digest":"sha256:worker","capabilities_digest":"sha256:capabilities",

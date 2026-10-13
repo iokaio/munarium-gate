@@ -89,6 +89,9 @@ pub fn validate(auth: &Authority, parameters: &Value) -> Result<Value> {
         || m["target_id"] != r["intent"]["target"]["id"]
         || m["credential_audience"] != r["intent"]["target"]["id"]
         || m["base_consequence"] != "C2"
+        || m["effect"] != "external-effect"
+        || m["idempotency"] != "operation-key"
+        || m["compensation"] != "none"
         || m["modifiers"] != json!([])
         || m["required_obligations"] != json!(["distinct-approval"])
         || r["intent"]["attachments"] != json!([])

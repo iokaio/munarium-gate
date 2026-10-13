@@ -61,6 +61,10 @@ class ActivationService(unittest.TestCase):
             transition["transition"]["scope"]=scope
             transition["ratification"]["scope"]=scope
             transition.update(not_before=int(time.time())-10,expires_at=int(time.time())+600)
+            dynamic = None
+            if os.environ.get("GATE_NATIVE_DYNAMIC") == "1":
+                from dynamic_service_fixture import Dynamic
+                dynamic = Dynamic(root, scope, vectors, transition)
             def receipt(owner, phase="applied"):
                 result=copy.deepcopy(vectors["records"]["pause"])
                 for key in ("transition","prior_epoch","successor_epoch","artifact_set_digest","participant_set_digest"):
@@ -85,11 +89,13 @@ class ActivationService(unittest.TestCase):
                 def do_GET(self):
                     if mode["churn"]: mode["revision"] += 1
                     self.answer(dict(config=dict(deployment=scope["deployment"],tenant=scope["tenant"]),head=1,
-                        revision=mode["revision"],artifact=dict(bindings={"stage2:"+COMPONENT:policy})))
+                        revision=mode["revision"],artifact=dict(bindings={"stage2:"+COMPONENT:policy,
+                            **(dynamic.bindings if dynamic is not None else {})})))
                 def do_POST(self):
                     count=int(self.headers.get("Content-Length","0"))
                     if count>262144: self.send_error(413); return
                     body=json.loads(self.rfile.read(count)); action=body["action"]
+                    if dynamic is not None and dynamic.answer(self, action): return
                     if self.path=="/council/v1/transitions":
                         self.answer(dict(transition=transition,transition_digest=digest(transition),ratified=mode["ratified"]));return
                     if mode["missing"] and (mode["missing"] is True or "/platform/" in self.path):
@@ -125,6 +131,7 @@ class ActivationService(unittest.TestCase):
                     registry_service="registry",provider_id="fixture",provider_token_file=str(root/"unused-token"),journal=str(root/"decisions.sqlite"),
                     evaluator=dict(python="unused",worker="unused",executable="unused",worker_digest="unused",executable_digest="unused",version="unused",capabilities={}),
                     activation=dict(database_url_file=str(root/"database-url"),council_endpoint=upstream+"/council"))
+                if dynamic is not None: dynamic.configure(config)
                 route="/v1/actions"
                 lookup="activation-lookup";head_operation="activation-head";apply_operation="apply-activation"
             else:
@@ -191,6 +198,11 @@ class ActivationService(unittest.TestCase):
                     child.kill();child.wait(timeout=10);child=start()
                     self.assertEqual(call(resume),reply)
                     self.assertFalse(call(dict(operation=head_operation),peer="reader")["paused"])
+                    if dynamic is not None:
+                        def restart():
+                            nonlocal child
+                            child.kill();child.wait(timeout=10);child=start()
+                        dynamic.exercise(self, call, refused, restart)
                 else:
                     status=call(dict(operation=head_operation),peer="reader")
                     self.assertEqual(status["epoch"],2);self.assertFalse(status["cell_resumed"])
