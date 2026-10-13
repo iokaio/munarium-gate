@@ -155,6 +155,37 @@ impl Store {
         tx.commit().await.map_err(unavailable)?;
         Ok(source.clone())
     }
+    /// Read an immutable source with its exact request/decision binding; no execution permission.
+    pub async fn action_source_lookup(&self, scope: &Value, operation: &str) -> Result<Value> {
+        let row =
+            sqlx::query("SELECT source FROM gate_action_sources WHERE scope=$1 AND operation=$2")
+                .bind(wire::raw(scope)?)
+                .bind(operation)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(unavailable)?
+                .ok_or(Error::Refused)?;
+        let source = wire::parse(&row.get::<String, _>("source"))?;
+        wire::shape(&source["request"], "action-request")?;
+        wire::shape(&source["decision"], "action-decision")?;
+        wire::scoped(&source, scope)?;
+        if source["request"]["operation"]["id"] != operation
+            || source["decision"]["operation"] != source["request"]["operation"]
+            || source["decision"]["attempt"] != source["request"]["attempt"]
+            || source["request"]["intent_digest"]
+                != wire::digest("intent", &source["request"]["intent"])?
+            || source["request"]["context_digest"]
+                != wire::digest("context", &source["request"]["context"])?
+            || source["decision"]["context_digest"] != source["request"]["context_digest"]
+            || source["decision"]["request_digest"]
+                != wire::digest("action-request", &source["request"])?
+            || source["current_context"] != source["request"]["context"]
+        {
+            return Err(Error::Refused);
+        }
+        Ok(source)
+    }
+
     /// Exact retained custody for an event; no replacement acknowledgement is synthesized.
     pub async fn action_evidence(&self, scope: &Value, event: &Value) -> Result<Value> {
         let row = sqlx::query(

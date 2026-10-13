@@ -14,6 +14,7 @@ section 8 covers Gate. A plan or a compiling interface does not establish a capa
 | [Validation](validation.md) | Local build recipe, automatic checks and future acceptance specifications |
 | [Stage 1](stage1.md) | Implemented decision-only behavior, reproducible checks and composition limits |
 | [Linux evaluator](linux-evaluator.md) | Experimental cgroup v2 worker, native limits, controls and remaining isolation boundary |
+| [Dynamic release materialization](dynamic-release.md) | Trusted owner input binding, evidence derivation, typed obligations and immutable source lookup |
 | [Stage 2 activation](activation-profile.md) | PostgreSQL barrier, authenticated participant evidence and remaining execution limits |
 
 The [source](../src/lib.rs) includes experimental Stage 1 behavior. Released contracts,

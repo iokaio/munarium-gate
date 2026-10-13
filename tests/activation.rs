@@ -195,6 +195,80 @@ fn consumption(
         now,
     }
 }
+
+#[tokio::test]
+#[ignore = "requires isolated GATE_TEST_DATABASE_URL; CI selects explicitly"]
+async fn immutable_source_lookup_survives_reopen_and_refuses_corrupt_bindings() {
+    let url = std::env::var("GATE_TEST_DATABASE_URL").expect("isolated test PostgreSQL required");
+    let db = Store::open(&url).await.unwrap();
+    let t = unique_transition();
+    let scope = &t["scope"];
+    db.initialize(scope, 1, t["prior_artifact_set_digest"].as_str().unwrap())
+        .await
+        .unwrap();
+    let a = admission(scope, "dynamic-source", 1000);
+    let source = json!({"request":a.request,"decision":a.decision,"current_context":a.request["context"],
+        "requester_chain":[a.request["intent"]["actor"]]});
+    assert!(
+        db.action_source_lookup(scope, "dynamic-source")
+            .await
+            .is_err()
+    );
+    db.action_source(scope, &source, true).await.unwrap();
+    let reopened = Store::open(&url).await.unwrap();
+    assert_eq!(
+        reopened
+            .action_source_lookup(scope, "dynamic-source")
+            .await
+            .unwrap(),
+        source
+    );
+    let mut changed = source.clone();
+    changed["request"]["intent"]["parameters"]["destination"] = json!("other-target");
+    assert!(reopened.action_source(scope, &changed, true).await.is_err());
+    assert_eq!(
+        reopened
+            .action_source_lookup(scope, "dynamic-source")
+            .await
+            .unwrap(),
+        source
+    );
+    let mut foreign = scope.clone();
+    foreign["tenant"] = json!("other-tenant");
+    assert!(
+        reopened
+            .action_source_lookup(&foreign, "dynamic-source")
+            .await
+            .is_err()
+    );
+    // An isolated corruption fixture must never turn mismatched durable bytes into authority.
+    let pool = sqlx_postgres::PgPool::connect(&url).await.unwrap();
+    for key in ["request_digest", "context_digest", "operation", "attempt"] {
+        let mut corrupt = source.clone();
+        if key.ends_with("digest") {
+            corrupt["decision"][key] = json!(format!("sha256:{}", "0".repeat(64)));
+        } else {
+            corrupt["decision"][key]["id"] = json!("other-identity");
+        }
+        wire::shape(&corrupt["decision"], "action-decision").unwrap();
+        sqlx_core::query::query(
+            "UPDATE gate_action_sources SET source=$1 WHERE scope=$2 AND operation=$3",
+        )
+        .bind(wire::raw(&corrupt).unwrap())
+        .bind(wire::raw(scope).unwrap())
+        .bind("dynamic-source")
+        .execute(&pool)
+        .await
+        .unwrap();
+        assert!(
+            reopened
+                .action_source_lookup(scope, "dynamic-source")
+                .await
+                .is_err(),
+            "corrupt {key}"
+        );
+    }
+}
 #[tokio::test]
 #[ignore = "requires isolated GATE_TEST_DATABASE_URL; CI selects explicitly"]
 async fn postgres_action_races_cancellation_pause_and_unresolved_capacity() {

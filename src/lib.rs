@@ -21,6 +21,7 @@ pub mod final_send;
 
 pub mod connector;
 pub mod decision;
+pub mod dynamic_release;
 pub mod evaluation;
 pub mod journal;
 pub mod opa;
