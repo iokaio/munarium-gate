@@ -4,9 +4,9 @@ The [materializer](../src/dynamic_release.rs) implements the first bounded part 
 [ADR 0016](https://github.com/iokaio/munarium-platform/blob/74fffdf67d7911f62eec3650fc0a8e9d7ec42239/docs/decisions/0016-dynamic-release-admission.md).
 It accepts typed trusted owner inputs and agent parameters, validates their exact
 bindings, derives the admitted test-result evidence and evaluates a pinned engine.
-It does not authenticate callers or expose a dynamic service endpoint. The service
-adapter must independently verify owners, live activation heads and current peers
-before constructing these inputs. Dynamic action integration remains subsequent work.
+It does not authenticate callers. The experimental service adapter independently
+verifies owners, live activation heads and current peers before constructing these
+inputs. Full real-service dynamic action composition remains subsequent work.
 
 The supported operation is a C2 disposable publication with a distinct approval,
 no attachments or modifiers and an unchanged enrolled destination. Manifest, policy,
@@ -42,3 +42,26 @@ reopen, immutable conflict, tenant refusal and corrupt-binding controls, alongsi
 the existing real journal/activation tests. Existing Windows/Linux native evaluator
 controls remain independent. Full dynamic request-to-effect composition, broader
 evidence/task profiles and safe restore reopening remain unqualified.
+
+## Experimental service adapter
+
+`POST /v1/actions` adds `propose` with enrolled `operation_id`, `attempt_id` and
+closed `parameters` (`artifact_digest`, `destination`). Duplicate or authoritative
+fields refuse. Current Server-signed task enrollment supplies optional `evaluation`
+with canonical `evidence_source`; the existing request field becomes its immutable
+context/task template. Without that enrollment, `propose` refuses and the prepared
+API remains compatible. Dynamic entries cannot use `prepare` to bypass evaluation.
+
+Gate obtains its own current Warden assertion, resolves the Registry-verified exact
+manifest, verifies Registry's installed head and resolves the current policy from
+its signed artifact registration. It checks native pins, evaluates outside async
+executor threads, rechecks authority, validates exact Server archive receipts and
+persists the immutable source. Retries/readers return original bytes. Claims,
+consumption and final admission use that source with current context, retirement
+and owner checks instead of reevaluating or renewing authority.
+
+The additive native Linux service test uses the real Gate/OPA/PostgreSQL with
+explicitly synthetic authenticated Server, Warden and Registry dependencies. It
+tests actor/tenant/parameter refusal, wrong archive custody, restart/retry, source
+lookup and retirement. This is component integration; it creates no target effects
+and does not replace the actual five-service/agent/target composition.

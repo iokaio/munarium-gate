@@ -78,6 +78,18 @@ jobs:
   linux-evaluator:
     name: Bounded Linux evaluator controls
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16@sha256:65b16a8b326e0cfbdf33fa7e783f2a0cb352a61448616ccccfd616ef42aa0f65
+        env:
+          POSTGRES_DB: dynamic_gate
+          POSTGRES_USER: stage2_test
+          POSTGRES_PASSWORD: stage2-test-only
+        ports: ["5432/tcp"]
+        options: >-
+          --memory 384m --cpus 1
+          --health-cmd "pg_isready -U stage2_test -d dynamic_gate"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -112,6 +124,14 @@ jobs:
         env:
           OPA_LINUX_EXECUTABLE: ${{ github.workspace }}/target/opa-linux
         run: sudo --preserve-env=MUNARIUM_OPA_CGROUP_ROOT,OPA_LINUX_EXECUTABLE,PATH sh -c 'echo $$ > "$1/supervisor/cgroup.procs"; owner="$2"; shift 2; exec runuser -u "$owner" -- "$@"' sh "$MUNARIUM_OPA_CGROUP_ROOT" "$(id -un)" cargo +1.98.1 test --offline --locked --test native_opa -- --ignored
+      - name: Actual dynamic Gate service and pinned native evaluation
+        env:
+          OPA_LINUX_EXECUTABLE: ${{ github.workspace }}/target/opa-linux
+          GATE_NATIVE_DYNAMIC: '1'
+          GATE_TEST_DATABASE_URL: postgres://stage2_test:stage2-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/dynamic_gate
+        run: |
+          cargo +1.98.1 build --offline --locked
+          sudo --preserve-env=MUNARIUM_OPA_CGROUP_ROOT,OPA_LINUX_EXECUTABLE,GATE_NATIVE_DYNAMIC,GATE_TEST_DATABASE_URL,PATH sh -c 'echo $$ > "$1/supervisor/cgroup.procs"; owner="$2"; shift 2; exec runuser -u "$owner" -- "$@"' sh "$MUNARIUM_OPA_CGROUP_ROOT" "$(id -un)" python3 scripts/test_activation_service.py -v
       - name: Remove only the owned evaluator cgroup
         if: always()
         run: |

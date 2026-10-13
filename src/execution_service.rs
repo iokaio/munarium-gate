@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-//! Opt-in prepared release adapter. All authority is fetched from enrolled owners.
+//! Experimental prepared/dynamic release adapter; authority comes from enrolled owners.
 use super::*;
 use munarium_gate::{
     action_journal::{Admission, Consumption},
@@ -18,6 +18,18 @@ struct Prepared {
     proposer: String,
     request: Value,
     requester_chain: Vec<Value>,
+    evaluation: Option<Evaluation>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Evaluation {
+    evidence_source: String,
+}
+#[derive(Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+struct Parameters {
+    artifact_digest: String,
+    destination: String,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -35,6 +47,11 @@ struct Policy {
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "kebab-case", deny_unknown_fields)]
 enum Action {
+    Propose {
+        operation_id: String,
+        attempt_id: String,
+        parameters: Parameters,
+    },
     Reconcile {
         operation_id: String,
     },
@@ -152,8 +169,10 @@ async fn admission(
     tenant: &str,
     operation: &str,
     id: &str,
+    state: &Value,
 ) -> Result<Admission, E> {
-    let s = source(p, operation)?;
+    let s = selected_source(rt, p, state, operation).await?;
+    current_artifacts(state, &rt.config.registry_service, &s["request"])?;
     let a = approval(rt, tenant, id).await?;
     Ok(Admission {
         request: s["request"].clone(),
@@ -163,6 +182,141 @@ async fn admission(
         approval_ack: a["audit"]["acknowledgement"].clone(),
         now: now()?,
     })
+}
+async fn dynamic_authority(
+    rt: &Runtime,
+    p: &Policy,
+    state: &Value,
+    operation: &str,
+) -> Result<munarium_gate::dynamic_release::Authority, E> {
+    let entry = p.requests.get(operation).ok_or(E::Refused)?;
+    let evaluation = entry.evaluation.as_ref().ok_or(E::Refused)?;
+    let request = &entry.request;
+    wire::shape(request, "action-request")?;
+    wire::scoped(request, &p.scope)?;
+    if request["operation"]["id"] != operation
+        || request["context"]["recovery"]["revision"] != p.recovery
+    {
+        return Err(E::Refused);
+    }
+    current_artifacts(state, &rt.config.registry_service, request)?;
+    let chain = rt
+        .assertion(
+            p.scope["tenant"].as_str().ok_or(E::Invalid)?,
+            &rt.config.registry_service,
+            &["read"],
+            format!("registry:{}", p.scope["tenant"].as_str().ok_or(E::Invalid)?),
+        )
+        .await
+        .map_err(|_| E::Unavailable)?;
+    let manifest = post(
+        rt,
+        format!(
+            "{}/v1/candidates",
+            rt.config.registry_endpoint.trim_end_matches('/')
+        ),
+        json!({"tenant":p.scope["tenant"],"chain":chain,"action":{"operation":"resolve",
+            "manifest_digest":request["context"]["manifest_digest"]}}),
+    )
+    .await?;
+    if manifest["status"] != "candidate"
+        || manifest["active"] != false
+        || manifest["manifest_digest"] != request["context"]["manifest_digest"]
+    {
+        return Err(E::Refused);
+    }
+    let head = post(
+        rt,
+        format!(
+            "{}/v1/activation",
+            rt.config.registry_endpoint.trim_end_matches('/')
+        ),
+        json!({"tenant":p.scope["tenant"],"action":{"operation":"head"}}),
+    )
+    .await?;
+    if head["scope"] != p.scope
+        || head["epoch"] != request["context"]["activation"]["revision"]
+        || head["artifact_set_digest"]
+            != munarium_gate::action_journal::artifact_set_for_service(request)?
+    {
+        return Err(E::Refused);
+    }
+    let artifacts = state["artifact"]["bindings"][format!("stage2:{}", rt.config.registry_service)]
+        ["artifacts"]
+        .as_array()
+        .ok_or(E::Refused)?;
+    let policy = artifacts
+        .iter()
+        .find(|a| a["kind"] == "policy" && a["digest"] == request["context"]["policy_digest"])
+        .ok_or(E::Refused)?["policy"]
+        .clone();
+    Ok(munarium_gate::dynamic_release::Authority {
+        template: request.clone(),
+        requester_chain: entry.requester_chain.clone(),
+        manifest: manifest["manifest"].clone(),
+        policy,
+        evidence_source: evaluation.evidence_source.clone(),
+        now: now()?,
+    })
+}
+async fn selected_source(
+    rt: &Runtime,
+    p: &Policy,
+    state: &Value,
+    operation: &str,
+) -> Result<Value, E> {
+    let entry = p.requests.get(operation).ok_or(E::Refused)?;
+    if entry.evaluation.is_none() {
+        return source(p, operation);
+    }
+    let stored = rt
+        .activation
+        .as_ref()
+        .ok_or(E::Unavailable)?
+        .action_source_lookup(&p.scope, operation)
+        .await?;
+    let auth = dynamic_authority(rt, p, state, operation).await?;
+    munarium_gate::dynamic_release::validate(&auth, &stored["request"]["intent"]["parameters"])?;
+    let mut expected = auth.template.clone();
+    expected["intent"]["parameters"] = stored["request"]["intent"]["parameters"].clone();
+    expected["intent_digest"] = json!(wire::digest("intent", &expected["intent"])?);
+    expected["context_digest"] = json!(wire::digest("context", &expected["context"])?);
+    if stored["request"] != expected || stored["requester_chain"] != json!(auth.requester_chain) {
+        return Err(E::Conflict);
+    }
+    Ok(stored)
+}
+async fn archive_source(rt: &Runtime, tenant: &str, source: &Value) -> Result<(), E> {
+    let chain = rt
+        .assertion(
+            tenant,
+            &rt.config.server_service,
+            &["propose"],
+            format!("action-records:{tenant}"),
+        )
+        .await
+        .map_err(|_| E::Unavailable)?;
+    for key in ["request", "decision"] {
+        let ack = rt
+            .records(
+                tenant,
+                &chain,
+                json!({"operation":"action-archive","record":wire::raw(&source[key])?}),
+            )
+            .await
+            .map_err(|_| E::Unavailable)?;
+        if ack["record_type"] != source[key]["type"]
+            || ack["digest"]
+                != wire::digest(
+                    source[key]["type"].as_str().ok_or(E::Invalid)?,
+                    &source[key],
+                )?
+            || ack["ledger_position"].as_u64().is_none_or(|n| n == 0)
+        {
+            return Err(E::Refused);
+        }
+    }
+    Ok(())
 }
 async fn fresh(rt: &Runtime, tenant: &str, state: &Value) -> Result<(), E> {
     let next = service_transport::authority(
@@ -234,6 +388,7 @@ async fn admitted(rt: &Runtime, peer: &Peer, body: &[u8]) -> Result<Value, E> {
     if matches!(
         input.action,
         Action::Prepare { .. }
+            | Action::Propose { .. }
             | Action::Claim { .. }
             | Action::Consume { .. }
             | Action::FinalSend { .. }
@@ -244,6 +399,47 @@ async fn admitted(rt: &Runtime, peer: &Peer, body: &[u8]) -> Result<Value, E> {
         .action_enroll(&p.scope, &p.stream, p.generation)
         .await?;
     match input.action {
+        Action::Propose {
+            operation_id,
+            attempt_id,
+            parameters,
+        } => {
+            let entry = p.requests.get(&operation_id).ok_or(E::Refused)?;
+            if peer.service != entry.proposer
+                || entry.evaluation.is_none()
+                || entry.request["attempt"]["id"] != attempt_id
+            {
+                return Err(E::Refused);
+            }
+            let parameters = serde_json::to_value(parameters).map_err(|_| E::Invalid)?;
+            let head = store.head(&p.scope).await?;
+            if head["paused"] != false
+                || head["epoch"] != entry.request["context"]["activation"]["revision"]
+                || head["artifact_set_digest"]
+                    != munarium_gate::action_journal::artifact_set_for_service(&entry.request)?
+            {
+                return Err(E::Refused);
+            }
+            if let Ok(stored) = store.action_source_lookup(&p.scope, &operation_id).await {
+                if stored["request"]["intent"]["parameters"] != parameters {
+                    return Err(E::Conflict);
+                }
+                let old = selected_source(rt, &p, &state, &operation_id).await?;
+                fresh(rt, tenant, &state).await?;
+                return Ok(old);
+            }
+            let auth = dynamic_authority(rt, &p, &state, &operation_id).await?;
+            let mut engine = rt.config.evaluator.engine();
+            let source = tokio::task::spawn_blocking(move || {
+                munarium_gate::dynamic_release::materialize(&auth, &parameters, &mut engine)
+            })
+            .await
+            .map_err(|_| E::Unavailable)??;
+            fresh(rt, tenant, &state).await?;
+            archive_source(rt, tenant, &source).await?;
+            fresh(rt, tenant, &state).await?;
+            store.action_source(&p.scope, &source, true).await
+        }
         Action::Reconcile { operation_id } => {
             if !p.readers.contains(&peer.service) {
                 return Err(E::Refused);
@@ -282,7 +478,10 @@ async fn admitted(rt: &Runtime, peer: &Peer, body: &[u8]) -> Result<Value, E> {
             if (prepare && peer.service != entry.proposer) || (!prepare && !privileged) {
                 return Err(E::Refused);
             }
-            let s = source(&p, &operation_id)?;
+            if prepare && entry.evaluation.is_some() {
+                return Err(E::Refused);
+            }
+            let s = selected_source(rt, &p, &state, &operation_id).await?;
             current_artifacts(&state, &rt.config.registry_service, &s["request"])?;
             if s["request"]["attempt"]["id"] != attempt_id {
                 return Err(E::Refused);
@@ -296,24 +495,7 @@ async fn admitted(rt: &Runtime, peer: &Peer, body: &[u8]) -> Result<Value, E> {
                 return Err(E::Refused);
             }
             if prepare {
-                let chain = rt
-                    .assertion(
-                        tenant,
-                        &rt.config.server_service,
-                        &["propose"],
-                        format!("action-records:{tenant}"),
-                    )
-                    .await
-                    .map_err(|_| E::Unavailable)?;
-                for key in ["request", "decision"] {
-                    rt.records(
-                        tenant,
-                        &chain,
-                        json!({"operation":"action-archive","record":wire::raw(&s[key])?}),
-                    )
-                    .await
-                    .map_err(|_| E::Unavailable)?;
-                }
+                archive_source(rt, tenant, &s).await?;
             }
             fresh(rt, tenant, &state).await?;
             store.action_source(&p.scope, &s, prepare).await
@@ -325,7 +507,7 @@ async fn admitted(rt: &Runtime, peer: &Peer, body: &[u8]) -> Result<Value, E> {
             if peer.service != p.connector {
                 return Err(E::Refused);
             }
-            let a = admission(rt, &p, tenant, &operation_id, &approval_id).await?;
+            let a = admission(rt, &p, tenant, &operation_id, &approval_id, &state).await?;
             fresh(rt, tenant, &state).await?;
             store.action_claim(&a).await
         }
@@ -351,7 +533,7 @@ async fn admitted(rt: &Runtime, peer: &Peer, body: &[u8]) -> Result<Value, E> {
             let id = old["binding"]["approval"]["approval"]["id"]
                 .as_str()
                 .ok_or(E::Invalid)?;
-            let mut a = admission(rt, &p, tenant, &operation_id, id).await?;
+            let mut a = admission(rt, &p, tenant, &operation_id, id, &state).await?;
             let g = post(
                 rt,
                 format!(
@@ -387,7 +569,7 @@ async fn admitted(rt: &Runtime, peer: &Peer, body: &[u8]) -> Result<Value, E> {
             let id = old["binding"]["approval"]["approval"]["id"]
                 .as_str()
                 .ok_or(E::Invalid)?;
-            let mut a = admission(rt, &p, tenant, &operation_id, id).await?;
+            let mut a = admission(rt, &p, tenant, &operation_id, id, &state).await?;
             let c=post(rt,format!("{}/v1/grants",rt.config.warden_endpoint.trim_end_matches('/')),json!({"tenant":tenant,"action":{"operation":"validate","operation_id":operation_id,"invocation":invocation}})).await?;
             if c["connector"] != peer.service || c["invocation"] != invocation {
                 return Err(E::Refused);
@@ -477,6 +659,21 @@ pub(super) async fn operate(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn dynamic_parameters_reject_duplicate_or_authoritative_fields() {
+        let valid = r#"{"tenant":"tenant-a","action":{"operation":"propose","operation_id":"op","attempt_id":"attempt","parameters":{"artifact_digest":"sha256:artifact","destination":"synthetic-release"}}}"#;
+        assert!(serde_json::from_str::<Input>(valid).is_ok());
+        for parameters in [
+            r#"{"artifact_digest":"a","artifact_digest":"b","destination":"synthetic-release"}"#,
+            r#"{"artifact_digest":"a","destination":"synthetic-release","context":{}}"#,
+            r#"{"artifact_digest":"a","destination":"synthetic-release","target_endpoint":"https://example.test"}"#,
+        ] {
+            let body = format!(
+                r#"{{"tenant":"tenant-a","action":{{"operation":"propose","operation_id":"op","attempt_id":"attempt","parameters":{parameters}}}}}"#
+            );
+            assert!(serde_json::from_str::<Input>(&body).is_err());
+        }
+    }
     #[test]
     fn prepared_source_requires_unique_current_nonretired_artifacts() {
         let request = json!({"context":{"manifest_digest":"manifest","policy_digest":"policy"}});
