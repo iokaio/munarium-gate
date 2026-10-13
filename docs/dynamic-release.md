@@ -60,6 +60,17 @@ persists the immutable source. Retries/readers return original bytes. Claims,
 consumption and final admission use that source with current context, retirement
 and owner checks instead of reevaluating or renewing authority.
 
+Following [ADR 0017](https://github.com/iokaio/munarium-platform/blob/513543df9cf17ada46feffcf590883d16b950980/docs/decisions/0017-scoped-registry-assertions.md),
+Gate may reuse only its verified scoped Registry read identity in private memory,
+bound to the complete current authority and provider input. Chain verification runs
+on insertion and every reuse. Retention is 30 seconds with ten seconds of remaining
+eligibility; restart/eviction/expiry or changed inputs lose the entry. Claim lookup
+prepares this identity before custody. A dynamic final cache miss refuses without
+issuing a delayed root inside the five-second custody window. No identity bytes
+enter a response, journal or evidence artifact. Registry head/manifest, source,
+approval, grant/custody and all final checks remain live; clock and custody bounds
+are unchanged. This is not a cached permission or automatic custody renewal.
+
 The additive native Linux service test uses the real Gate/OPA/PostgreSQL with
 explicitly synthetic authenticated Server, Warden and Registry dependencies. It
 tests actor/tenant/parameter refusal, wrong archive custody, restart/retry, source

@@ -170,8 +170,9 @@ async fn admission(
     operation: &str,
     id: &str,
     state: &Value,
+    reuse_only: bool,
 ) -> Result<Admission, E> {
-    let s = selected_source(rt, p, state, operation).await?;
+    let s = selected_source(rt, p, state, operation, reuse_only).await?;
     current_artifacts(state, &rt.config.registry_service, &s["request"])?;
     let a = approval(rt, tenant, id).await?;
     Ok(Admission {
@@ -188,6 +189,7 @@ async fn dynamic_authority(
     p: &Policy,
     state: &Value,
     operation: &str,
+    reuse_only: bool,
 ) -> Result<munarium_gate::dynamic_release::Authority, E> {
     let entry = p.requests.get(operation).ok_or(E::Refused)?;
     let evaluation = entry.evaluation.as_ref().ok_or(E::Refused)?;
@@ -201,11 +203,10 @@ async fn dynamic_authority(
     }
     current_artifacts(state, &rt.config.registry_service, request)?;
     let chain = rt
-        .assertion(
+        .registry_assertion(
             p.scope["tenant"].as_str().ok_or(E::Invalid)?,
-            &rt.config.registry_service,
-            &["read"],
-            format!("registry:{}", p.scope["tenant"].as_str().ok_or(E::Invalid)?),
+            state,
+            reuse_only,
         )
         .await
         .map_err(|_| E::Unavailable)?;
@@ -264,6 +265,7 @@ async fn selected_source(
     p: &Policy,
     state: &Value,
     operation: &str,
+    reuse_only: bool,
 ) -> Result<Value, E> {
     let entry = p.requests.get(operation).ok_or(E::Refused)?;
     if entry.evaluation.is_none() {
@@ -275,7 +277,7 @@ async fn selected_source(
         .ok_or(E::Unavailable)?
         .action_source_lookup(&p.scope, operation)
         .await?;
-    let auth = dynamic_authority(rt, p, state, operation).await?;
+    let auth = dynamic_authority(rt, p, state, operation, reuse_only).await?;
     munarium_gate::dynamic_release::validate(&auth, &stored["request"]["intent"]["parameters"])?;
     let mut expected = auth.template.clone();
     expected["intent"]["parameters"] = stored["request"]["intent"]["parameters"].clone();
@@ -424,11 +426,11 @@ async fn admitted(rt: &Runtime, peer: &Peer, body: &[u8]) -> Result<Value, E> {
                 if stored["request"]["intent"]["parameters"] != parameters {
                     return Err(E::Conflict);
                 }
-                let old = selected_source(rt, &p, &state, &operation_id).await?;
+                let old = selected_source(rt, &p, &state, &operation_id, false).await?;
                 fresh(rt, tenant, &state).await?;
                 return Ok(old);
             }
-            let auth = dynamic_authority(rt, &p, &state, &operation_id).await?;
+            let auth = dynamic_authority(rt, &p, &state, &operation_id, false).await?;
             let mut engine = rt.config.evaluator.engine();
             let source = tokio::task::spawn_blocking(move || {
                 munarium_gate::dynamic_release::materialize(&auth, &parameters, &mut engine)
@@ -481,7 +483,7 @@ async fn admitted(rt: &Runtime, peer: &Peer, body: &[u8]) -> Result<Value, E> {
             if prepare && entry.evaluation.is_some() {
                 return Err(E::Refused);
             }
-            let s = selected_source(rt, &p, &state, &operation_id).await?;
+            let s = selected_source(rt, &p, &state, &operation_id, false).await?;
             current_artifacts(&state, &rt.config.registry_service, &s["request"])?;
             if s["request"]["attempt"]["id"] != attempt_id {
                 return Err(E::Refused);
@@ -507,13 +509,22 @@ async fn admitted(rt: &Runtime, peer: &Peer, body: &[u8]) -> Result<Value, E> {
             if peer.service != p.connector {
                 return Err(E::Refused);
             }
-            let a = admission(rt, &p, tenant, &operation_id, &approval_id, &state).await?;
+            let a = admission(rt, &p, tenant, &operation_id, &approval_id, &state, false).await?;
             fresh(rt, tenant, &state).await?;
             store.action_claim(&a).await
         }
         Action::ClaimLookup { operation_id } => {
             if !privileged {
                 return Err(E::Refused);
+            }
+            if p.requests
+                .get(&operation_id)
+                .is_some_and(|entry| entry.evaluation.is_some())
+            {
+                rt.registry_assertion(tenant, &state, false)
+                    .await
+                    .map_err(|_| E::Unavailable)?;
+                fresh(rt, tenant, &state).await?;
             }
             let mut result = store.action_lookup(&p.scope, &operation_id).await?;
             result["claim_audit"] = store.action_evidence(&p.scope, &result["claim"]).await?;
@@ -533,7 +544,7 @@ async fn admitted(rt: &Runtime, peer: &Peer, body: &[u8]) -> Result<Value, E> {
             let id = old["binding"]["approval"]["approval"]["id"]
                 .as_str()
                 .ok_or(E::Invalid)?;
-            let mut a = admission(rt, &p, tenant, &operation_id, id, &state).await?;
+            let mut a = admission(rt, &p, tenant, &operation_id, id, &state, false).await?;
             let g = post(
                 rt,
                 format!(
@@ -569,7 +580,7 @@ async fn admitted(rt: &Runtime, peer: &Peer, body: &[u8]) -> Result<Value, E> {
             let id = old["binding"]["approval"]["approval"]["id"]
                 .as_str()
                 .ok_or(E::Invalid)?;
-            let mut a = admission(rt, &p, tenant, &operation_id, id, &state).await?;
+            let mut a = admission(rt, &p, tenant, &operation_id, id, &state, true).await?;
             let c=post(rt,format!("{}/v1/grants",rt.config.warden_endpoint.trim_end_matches('/')),json!({"tenant":tenant,"action":{"operation":"validate","operation_id":operation_id,"invocation":invocation}})).await?;
             if c["connector"] != peer.service || c["invocation"] != invocation {
                 return Err(E::Refused);

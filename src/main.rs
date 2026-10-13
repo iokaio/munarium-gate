@@ -4,6 +4,7 @@ mod activation_service;
 mod decision_store;
 mod delivery_service;
 mod execution_service;
+mod registry_assertions;
 #[path = "../vendor/warden-transport/service_transport.rs"]
 mod service_transport;
 use axum::{
@@ -77,6 +78,7 @@ struct Runtime {
     serial: tokio::sync::Mutex<()>,
     activation: Option<munarium_gate::activation::Store>,
     activation_permits: tokio::sync::Semaphore,
+    registry_assertions: Mutex<registry_assertions::Cache>,
 }
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "kebab-case", deny_unknown_fields)]
@@ -112,6 +114,17 @@ impl Runtime {
     ) -> Result<Vec<String>, Error> {
         let token = std::fs::read_to_string(&self.config.provider_token_file)
             .map_err(|_| Error::Identity)?;
+        self.assertion_from(tenant, audience, scopes, resource, &token)
+            .await
+    }
+    async fn assertion_from(
+        &self,
+        tenant: &str,
+        audience: &str,
+        scopes: &[&str],
+        resource: String,
+        token: &str,
+    ) -> Result<Vec<String>, Error> {
         if token.len() > 65536 {
             return Err(Error::Identity);
         }
@@ -130,6 +143,62 @@ impl Runtime {
             tokio::time::sleep(Duration::from_secs((usable - now + 1) as u64)).await;
         }
         serde_json::from_value(response["chain"].clone()).map_err(|_| Error::Identity)
+    }
+    async fn registry_assertion(
+        &self,
+        tenant: &str,
+        state: &Value,
+        reuse_only: bool,
+    ) -> Result<Vec<String>, Error> {
+        let token = std::fs::read_to_string(&self.config.provider_token_file)
+            .map_err(|_| Error::Identity)?;
+        if token.len() > 65536 {
+            return Err(Error::Identity);
+        }
+        let key = registry_assertions::key(
+            &encoded(state)?,
+            token.as_bytes(),
+            &self.config.deployment,
+            tenant,
+            &self.config.service,
+            &self.config.registry_service,
+        );
+        let trust = || {
+            policy::current(
+                &state["artifact"]["bindings"]
+                    [format!("identity:{}", self.config.registry_service)],
+                &self.config.deployment,
+                tenant,
+                &self.config.registry_service,
+                &self.config.service,
+                service_transport::now().map_err(|_| Error::Identity)?,
+            )
+            .map_err(|_| Error::Identity)
+        };
+        if let Some(chain) = self
+            .registry_assertions
+            .lock()
+            .map_err(|_| Error::Identity)?
+            .get(&key, &trust()?)
+        {
+            return Ok(chain);
+        }
+        if reuse_only {
+            return Err(Error::Identity);
+        }
+        let chain = self
+            .assertion_from(
+                tenant,
+                &self.config.registry_service,
+                &["read"],
+                format!("registry:{tenant}"),
+                &token,
+            )
+            .await?;
+        self.registry_assertions
+            .lock()
+            .map_err(|_| Error::Identity)?
+            .insert(key, chain, &trust()?)
     }
     async fn records(&self, tenant: &str, chain: &[String], action: Value) -> Result<Value, Error> {
         let response = self
@@ -531,6 +600,7 @@ async fn run() -> Result<(), Failure> {
         serial: tokio::sync::Mutex::new(()),
         activation,
         activation_permits: tokio::sync::Semaphore::new(32),
+        registry_assertions: Mutex::new(registry_assertions::Cache::default()),
     });
     let router = Router::new()
         .route("/v1/decisions", post(operate))

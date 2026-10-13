@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 """Synthetic authenticated owner inputs for the actual Gate/native OPA service test."""
 import copy
+import base64
 import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
+import tempfile
 import time
 
 from check_opa import capabilities
@@ -82,9 +86,35 @@ class Dynamic:
         denied["request"]["context"]["evidence"][0]["content_digest"] = "sha256:"+hashlib.sha256(denied_source.encode()).hexdigest()
         denied["request"]["context_digest"] = digest("munarium:stage2:context:v1", denied["request"]["context"])
         self.bindings["execution:gate"]["requests"]["native-denied"] = denied
+        self.openssl = shutil.which("openssl") or "C:/Program Files/Git/usr/bin/openssl.exe"
+        self.issuer = root / "dynamic-issuer.key"
+        subprocess.run([self.openssl, "genpkey", "-algorithm", "ED25519", "-out", str(self.issuer)], check=True, capture_output=True)
+        public = subprocess.run([self.openssl, "pkey", "-in", str(self.issuer), "-pubout", "-outform", "DER"], check=True, capture_output=True).stdout
+        assert len(public) == 44, "Ed25519 public-key encoding"
+        restriction = dict(digest=context["policy_digest"], nbf=now-10, exp=now+600, scopes=["read"], resources=["registry:"+scope["tenant"]])
+        self.bindings["identity:registry"] = dict(keys={"dynamic":dict(public_key=self.b64(public[-32:]), issuer="warden", decision=True)},
+            peers={"gate":dict(task=restriction, policy=restriction, maximum_depth=0)}, registrations=[])
         (root/"provider-token").write_text("synthetic-provider-token")
         self.archived = {}
         self.wrong_archive = False
+        self.issued = 0
+
+    @staticmethod
+    def b64(raw):
+        return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+    def assertion(self):
+        now = int(time.time())
+        header = dict(alg="Ed25519", kid="dynamic", typ="munarium-principal+jws")
+        payload = dict(schema_version=1, deployment=self.scope["deployment"], tenant=self.scope["tenant"], issuer="warden",
+            audience="registry", origin="gate", actor="gate", origin_kind="service", service="gate", purpose="decision",
+            scopes=["read"], resources=["registry:"+self.scope["tenant"]], iat=now-3, nbf=now-3, exp=now+57, parent_digest=None, bootstrap=None)
+        message = (self.b64(encoded(header).encode()) + "." + self.b64(encoded(payload).encode())).encode()
+        with tempfile.TemporaryDirectory(dir=self.root, prefix="assertion-") as directory:
+            path = Path(directory) / "input"
+            path.write_bytes(message)
+            signature = subprocess.run([self.openssl, "pkeyutl", "-sign", "-rawin", "-inkey", str(self.issuer), "-in", str(path)], check=True, capture_output=True).stdout
+        return message.decode() + "." + self.b64(signature)
 
     def configure(self, config):
         config.update(evaluator=self.evaluator, provider_token_file=str(self.root/"provider-token"),
@@ -92,7 +122,8 @@ class Dynamic:
 
     def answer(self, handler, action):
         if handler.path.endswith("/v1/identity"):
-            handler.answer(dict(chain=[], usable_at=int(time.time())-1)); return True
+            self.issued += 1
+            handler.answer(dict(chain=[self.assertion()], usable_at=int(time.time())-1)); return True
         if handler.path.endswith("/v1/candidates"):
             handler.answer(dict(status="candidate", active=False, manifest=self.manifest,
                 manifest_digest=self.template["context"]["manifest_digest"])); return True
@@ -122,12 +153,16 @@ class Dynamic:
         test.assertEqual(first["decision"]["outcome"], "approval-required")
         test.assertEqual(len(first["decision"]["obligations"]), 4)
         test.assertEqual({key[0] for key in self.archived}, {"action-request", "action-decision"})
+        issued = self.issued
+        test.assertEqual(call(proposal, "agent"), first)
+        test.assertEqual(self.issued, issued, "qualified identity retry must not issue another root")
         denied = dict(proposal, operation_id="native-denied", attempt_id="denied-attempt")
         verdict = call(denied, "agent")
         test.assertEqual(verdict["decision"]["outcome"], "denied")
         test.assertEqual(verdict["decision"]["obligations"], [])
         restart()
         test.assertEqual(call(proposal, "agent"), first)
+        test.assertGreater(self.issued, issued, "process restart must discard identity retention")
         test.assertEqual(call(dict(operation="source", operation_id="native-dynamic", attempt_id="native-attempt"), "reader"), first)
         refused(wrong, "agent")
         refused(dict(operation="prepare", operation_id="native-dynamic", attempt_id="native-attempt"), "agent")
